@@ -1,0 +1,73 @@
+package ru.it_spectrum.ai.sonar.mcp.tools;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.ai.mcp.annotation.McpTool;
+import org.springframework.ai.mcp.annotation.McpToolParam;
+import org.springframework.stereotype.Service;
+import ru.it_spectrum.ai.sonar.mcp.api.HotspotDetails;
+import ru.it_spectrum.ai.sonar.mcp.api.HotspotPage;
+import ru.it_spectrum.ai.sonar.mcp.config.SonarMcpProperties;
+import ru.it_spectrum.ai.sonar.mcp.service.HotspotNotFoundException;
+import ru.it_spectrum.ai.sonar.mcp.service.HotspotService;
+
+@Service
+public class HotspotTools {
+
+    private static final Logger log = LoggerFactory.getLogger(HotspotTools.class);
+
+    private final HotspotService hotspotService;
+    private final SonarMcpProperties properties;
+
+    public HotspotTools(HotspotService hotspotService, SonarMcpProperties properties) {
+        this.hotspotService = hotspotService;
+        this.properties = properties;
+    }
+
+    @McpTool(
+            description = "List SonarQube Security Hotspots for a project. Hotspots are a separate category " +
+            "from issues — they flag code that needs human security review. By default Sonar returns hotspots " +
+            "in TO_REVIEW status. Each item has rule, security category, vulnerability probability, file path, line, and message.",
+            generateOutputSchema = true,
+            annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
+    )
+    public HotspotPage listHotspots(
+            @McpToolParam(description = "Sonar project key") String projectKey,
+            @McpToolParam(description = "File path or comma-separated paths to scope the search (optional)", required = false) String pathPrefix,
+            @McpToolParam(description = "Status: TO_REVIEW or REVIEWED (optional, default TO_REVIEW)", required = false) String status,
+            @McpToolParam(description = "Sonar branch name (optional)", required = false) String branch,
+            @McpToolParam(description = "Maximum number of results, uses configured default when omitted", required = false) Integer limit,
+            @McpToolParam(description = "Offset for pagination, default 0", required = false) Integer offset
+    ) {
+        log.info("Tool call: listHotspots (projectKey={}, pathPrefix={}, status={}, branch={}, limit={}, offset={})",
+                projectKey, pathPrefix, status, branch, limit, offset);
+        long start = System.nanoTime();
+        int actualLimit = limit != null ? limit : properties.pagination().defaultLimit();
+        int actualOffset = offset != null ? offset : properties.pagination().defaultOffset();
+        HotspotPage result = hotspotService.list(projectKey, pathPrefix, status, branch,
+                actualOffset, actualLimit);
+        ToolLogger.completed(log, "listHotspots", start);
+        return result;
+    }
+
+    @McpTool(
+            description = "Get detailed information about a Security Hotspot: full rule description with risk, " +
+            "vulnerability and fix-recommendations sections, primary textRange, secondary flows, and changelog.",
+            generateOutputSchema = true,
+            annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
+    )
+    public HotspotDetails getHotspot(
+            @McpToolParam(description = "Sonar hotspot key") String hotspotKey
+    ) {
+        log.info("Tool call: getHotspot (hotspotKey={})", hotspotKey);
+        long start = System.nanoTime();
+        try {
+            HotspotDetails result = hotspotService.findOne(hotspotKey);
+            ToolLogger.completed(log, "getHotspot", start);
+            return result;
+        } catch (HotspotNotFoundException e) {
+            ToolLogger.failed(log, "getHotspot", start, e.getMessage());
+            throw e;
+        }
+    }
+}

@@ -1,0 +1,23 @@
+spring:
+  main:
+    web-application-type: none
+    banner-mode: off
+  ai:
+    mcp:
+      server:
+        name: sonar-mcp-server
+        version: 0.1.0
+        stdio: true
+
+sonar-mcp:
+  data-dir: ${SONAR_MCP_DATA_DIR:${user.home}/.sonar-mcp-server}
+  pagination:
+    default-limit: ${SONAR_MCP_PAGINATION_DEFAULT_LIMIT:50}
+    default-offset: ${SONAR_MCP_PAGINATION_DEFAULT_OFFSET:0}
+    max-limit: ${SONAR_MCP_PAGINATION_MAX_LIMIT:500}
+  snippet:
+    max-lines: ${SONAR_MCP_SNIPPET_MAX_LINES:50}
+
+sonar:
+  url: ${SONARQUBE_URL:${SONAR_URL:}}
+  token: ${SONARQUBE_TOKEN:${SONAR_TOKEN:}}
