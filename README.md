@@ -1,232 +1,251 @@
 # Sonar MCP Server
 
-Локальный MCP-сервер для read-only доступа к корпоративному SonarQube 9 через web-api.
-Позволяет AI-агентам (Claude Code, Cursor, VS Code Copilot и др.) получать список замечаний по проекту, файлы и места, где они возникают, описания правил, фрагменты исходного кода вокруг замечаний и Security Hotspots.
+A local MCP server providing read-only access to a corporate SonarQube 9 via its web-api.
+It lets AI agents (Claude Code, Cursor, VS Code Copilot, etc.) fetch a project's issue list, the files and locations where they occur, rule descriptions, source-code snippets around issues, and Security Hotspots.
 
-Типовой сценарий: «найди и поправь замечания Sonar в таком-то проекте» — LLM зовёт `listIssues`, при необходимости `getRule` и `getIssueSnippets`, и правит файлы локально.
+Typical scenario: "find and fix Sonar issues in such-and-such project" — the LLM calls `listIssues`, optionally `getRule` and `getIssueSnippets`, and edits files locally.
 
-## Быстрый старт
+## Why this server
 
-1. Установите JDK 25+.
-2. Соберите сервер: `./gradlew build`.
-3. Получите URL SonarQube и user token.
-4. Добавьте собранный JAR в MCP-конфигурацию вашего клиента.
+There is an official SonarSource MCP server, but it targets SonarQube **10+** (and SonarCloud) and its web-api contract. Many corporate installations are still on **SonarQube 9** — and that's exactly what this server is built for. It speaks the v9 web-api directly, with no v10 assumptions baked in.
 
-| Клиент | Инструкция |
-|---|---|
-| Claude Code | [CLAUDE_CODE_SETUP.md](CLAUDE_CODE_SETUP.md) |
-| Qwen Code | [QWEN_CODE_SETUP.md](QWEN_CODE_SETUP.md) |
+It is also intentionally narrower in scope:
 
-## Архитектура
+- **Read-only by design.** The server never creates, updates, or deletes anything in SonarQube — no marking issues as false-positive, no editing comments, no admin endpoints. The token's write permissions in SonarQube are irrelevant because the server never calls those endpoints.
+- **Curated tool set.** Instead of mirroring the SonarQube API surface, the server exposes a small, focused set of tools (8 in total) chosen for a single workflow: *let an AI agent read Sonar's findings and fix the code based on them*. Listing issues and hotspots, drilling into a single finding, fetching the rule explanation, and pulling the source-code snippet around the location — and that's it. Anything outside this "diagnose → fix the code locally" loop is deliberately left out to keep the tool list small and the agent's choices unambiguous.
 
-Сервер поддерживает только транспорт `stdio`.
+In short: a focused, read-only bridge from SonarQube 9 to an AI coding agent.
+
+## Quick start
+
+1. Install JDK 25+.
+2. Build the server: `./gradlew build`.
+3. Get your SonarQube URL and user token.
+4. Add the resulting JAR to your client's MCP configuration (see [Connecting to an AI client](#connecting-to-an-ai-client)).
+
+## Architecture
+
+The server only supports the `stdio` transport.
 
 ```
 ┌─────────────┐     stdio      ┌──────────────────┐    web-api     ┌──────────┐
-│  AI-агент   │ <------------> │  sonar-mcp-      │ -------------> │ SonarQube│
+│  AI agent   │ <------------> │  sonar-mcp-      │ -------------> │ SonarQube│
 │ (Claude Code│   stdin/stdout │  server (Java)   │  HTTP + Basic  │   v9     │
 │  Cursor...) │                │                  │  auth (token)  │          │
 └─────────────┘                └──────────────────┘                └──────────┘
 ```
 
-AI-клиент запускает сервер как дочерний процесс, обмен по протоколу MCP через stdin/stdout.
-Сервер не открывает HTTP-порт и не принимает входящих подключений.
+The AI client spawns the server as a child process; communication uses the MCP protocol over stdin/stdout.
+The server does not open any HTTP port and accepts no incoming connections.
 
-## Инструменты
+## Tools
 
-Сервер экспортирует **8 read-only MCP tools**.
+The server exports **8 read-only MCP tools**.
 
-### Проекты
+### Projects
 
-| Tool | Описание |
+| Tool | Description |
 |---|---|
-| `listProjects` | Список проектов SonarQube. Параметры: `query` (подстрока имени), `limit`, `offset`. Возвращает `key`, `name`, `qualifier`. |
+| `listProjects` | List of SonarQube projects. Parameters: `query` (name substring), `limit`, `offset`. Returns `key`, `name`, `qualifier`. |
 
-### Замечания
+### Issues
 
-| Tool | Описание |
+| Tool | Description |
 |---|---|
-| `listIssues` | Плоский список замечаний для проекта. Параметры: `projectKey` (обязательный), `pathPrefix` (относительный путь от корня проекта, опц.), `severities`, `types`, `statuses`, `rules`, `branch`, `resolved`, `limit`, `offset`. По умолчанию возвращает только открытые (`resolved=false`, статусы OPEN/CONFIRMED/REOPENED). Каждый элемент содержит правило, severity, type, status, file path, line, primary textRange, и secondary flows для cross-file правил. |
-| `getIssue` | Детали одного замечания по ключу + история изменений (`changelog`). |
-| `getIssueSnippets` | Фрагменты исходного кода вокруг всех локаций замечания (первичная + flows для cross-file правил). По каждой локации — `componentPath`, язык и массив строк кода со SCM-информацией. Полезно, когда репозиторий недоступен локально или нужно увидеть точно ту версию файла, которую анализировал Sonar. |
-| `getProjectIssuesSummary` | Агрегированная сводка открытых замечаний по проекту: total + срезы по severity, type, status, rule, tag и SCM-author. Параметры: `projectKey`, `pathPrefix` (опц.), `branch` (опц.). |
+| `listIssues` | Flat list of issues for a project. Parameters: `projectKey` (required), `pathPrefix` (path relative to project root, opt.), `severities`, `types`, `statuses`, `rules`, `branch`, `resolved`, `limit`, `offset`. By default returns only open issues (`resolved=false`, statuses OPEN/CONFIRMED/REOPENED). Each item contains the rule, severity, type, status, file path, line, primary textRange, and secondary flows for cross-file rules. |
+| `getIssue` | Details of a single issue by key plus its change history (`changelog`). |
+| `getIssueSnippets` | Source-code snippets around all issue locations (primary plus flows for cross-file rules). For each location: `componentPath`, language, and an array of source lines with SCM info. Useful when the repository isn't available locally or you need to see exactly the file version Sonar analyzed. |
+| `getProjectIssuesSummary` | Aggregated summary of open issues in a project: total plus breakdowns by severity, type, status, rule, tag, and SCM author. Parameters: `projectKey`, `pathPrefix` (opt.), `branch` (opt.). |
 
-### Правила
+### Rules
 
-| Tool | Описание |
+| Tool | Description |
 |---|---|
-| `getRule` | Детали правила Sonar по ключу (например `java:S1234`): заголовок, severity, type, язык, теги, секции описания (introduction, root cause, how to fix, resources). С in-memory кэшем — повторные вызовы бесплатные. |
+| `getRule` | Details of a Sonar rule by key (e.g. `java:S1234`): title, severity, type, language, tags, description sections (introduction, root cause, how to fix, resources). Backed by an in-memory cache — repeated calls are free. |
 
 ### Security Hotspots
 
-| Tool | Описание |
+| Tool | Description |
 |---|---|
-| `listHotspots` | Список Security Hotspots для проекта. Hotspots — отдельная категория от issues, помечает места, требующие ручной проверки безопасности. По умолчанию Sonar возвращает hotspots в статусе `TO_REVIEW`. Параметры: `projectKey`, `pathPrefix` (опц.), `status` (опц.), `branch` (опц.), `limit`, `offset`. |
-| `getHotspot` | Детали Security Hotspot: полное описание правила (риск, vulnerability, fix recommendations), primary textRange, secondary flows, changelog. |
+| `listHotspots` | List of Security Hotspots for a project. Hotspots are a separate category from issues, marking spots that require manual security review. By default Sonar returns hotspots in status `TO_REVIEW`. Parameters: `projectKey`, `pathPrefix` (opt.), `status` (opt.), `branch` (opt.), `limit`, `offset`. |
+| `getHotspot` | Security Hotspot details: full rule description (risk, vulnerability, fix recommendations), primary textRange, secondary flows, changelog. |
 
-Все инструменты **read-only** — данные в SonarQube не изменяются.
+All tools are **read-only** — no data in SonarQube is modified.
 
-## Стек
+## Stack
 
 - Java 25, Spring Boot 4.0.0, Spring AI MCP 2.0.0-M6 (stdio transport)
-- Jackson Databind для JSON
-- Gradle 9.3.1 с version catalog (`gradle/libs.versions.toml`)
+- Jackson Databind for JSON
+- Gradle 9.3.1 with version catalog (`gradle/libs.versions.toml`)
 
-## Сборка
+## Build
 
 ```bash
-# Указать JDK 25+, если не является JDK по умолчанию:
+# Point to a JDK 25+ if it's not the default:
 export JAVA_HOME="$HOME/.jdks/jdk-25.0.2"
 
 ./gradlew build
 ```
 
-Результат: `build/libs/sonar-mcp-server.jar`
+On Windows: `.\gradlew.bat build`.
 
-## Настройка
+Output: `build/libs/sonar-mcp-server.jar`
 
-Серверу нужны URL и токен SonarQube; остальные переменные опциональны.
+## Configuration
 
-| Переменная | Описание |
+The server needs a SonarQube URL and token; the rest is optional.
+
+| Variable | Description |
 |---|---|
-| `SONARQUBE_URL` (или `SONAR_URL`) | Базовый URL SonarQube (например `http://sonar.example.com`) |
-| `SONARQUBE_TOKEN` (или `SONAR_TOKEN`) | User token SonarQube |
-| `SONAR_MCP_DATA_DIR` | Каталог локальных данных сервера; по умолчанию `~/.sonar-mcp-server` |
-| `SONAR_MCP_PAGINATION_DEFAULT_LIMIT` | Лимит страницы по умолчанию для list-инструментов; по умолчанию `50` |
-| `SONAR_MCP_PAGINATION_DEFAULT_OFFSET` | Offset по умолчанию для list-инструментов; по умолчанию `0` |
-| `SONAR_MCP_PAGINATION_MAX_LIMIT` | Максимальный лимит страницы (Sonar API сам режет на 500); по умолчанию `500` |
-| `SONAR_MCP_SNIPPET_MAX_LINES` | Резерв для будущего ограничения числа строк в одном snippet; сейчас не используется напрямую, Sonar сам выбирает окно. По умолчанию `50` |
+| `SONAR_URL` | SonarQube base URL (e.g. `http://sonar.example.com`) |
+| `SONAR_TOKEN` | SonarQube user token |
+| `SONAR_DEFAULT_PROJECT_KEY` | Default SonarQube project key. When set, `listIssues`, `getProjectIssuesSummary`, `listHotspots` can be called without `projectKey`. |
+| `SONAR_MCP_DATA_DIR` | Local data directory for the server; defaults to `~/.sonar-mcp-server` |
+| `SONAR_MCP_PAGINATION_DEFAULT_LIMIT` | Default page limit for list tools; defaults to `50` |
+| `SONAR_MCP_PAGINATION_DEFAULT_OFFSET` | Default offset for list tools; defaults to `0` |
+| `SONAR_MCP_PAGINATION_MAX_LIMIT` | Max page limit (Sonar API itself caps at 500); defaults to `500` |
+| `SONAR_MCP_SNIPPET_MAX_LINES` | Reserved for future per-snippet line cap; currently unused (Sonar picks the window itself). Defaults to `50` |
 
-### Как получить SonarQube URL
+### Getting the SonarQube URL
 
-Откройте SonarQube в браузере и скопируйте адрес из адресной строки **без** пути — только схему и домен.
+Open SonarQube in a browser and copy the address from the location bar **without** the path — only scheme and host.
 
-| В адресной строке браузера | Значение URL |
+| In the browser address bar | URL value |
 |---|---|
 | `https://sonar.example.com/dashboard?id=...` | `https://sonar.example.com` |
 | `http://192.168.1.50:9000/projects` | `http://192.168.1.50:9000` |
 | `http://10.0.0.5/sonar/projects` | `http://10.0.0.5/sonar` |
 
-> Если SonarQube доступен только по IP-адресу, используйте IP как есть. Если развёрнут по подпути (например `/sonar`), его тоже нужно включить в URL.
+> If SonarQube is reachable only by IP, use the IP as is. If it's deployed under a subpath (e.g. `/sonar`), include that in the URL as well.
 
-### Как получить токен SonarQube
+### Getting a SonarQube token
 
-1. Войдите в SonarQube под своей учётной записью.
-2. Откройте **My Account** -> **Security**.
-3. В разделе **Generate Tokens** введите имя токена и выберите тип **User Token**.
-4. Нажмите **Generate** — токен будет показан один раз. Скопируйте его сразу.
-5. Используйте значение токена как `SONARQUBE_TOKEN`.
+1. Sign in to SonarQube with your account.
+2. Open **My Account** -> **Security**.
+3. In **Generate Tokens**, enter a token name and pick type **User Token**.
+4. Click **Generate** — the token is shown only once. Copy it immediately.
+5. Use the token value as `SONAR_TOKEN`.
 
-> Если токен потерян, его нужно сгенерировать заново — SonarQube не показывает существующие токены повторно.
+> If a token is lost, you have to regenerate it — SonarQube doesn't display existing tokens again.
 
-Сервер использует HTTP Basic auth, где токен передаётся в качестве username с пустым паролем — это стандартная схема SonarQube 9 для user-токенов.
+The server uses HTTP Basic auth, passing the token as the username with an empty password — this is the standard SonarQube 9 scheme for user tokens.
 
-## Запуск
+## Running
 
 ```bash
-SONARQUBE_URL=http://sonar.example.com SONARQUBE_TOKEN=your_token \
+SONAR_URL=http://sonar.example.com SONAR_TOKEN=your_token \
   java -jar build/libs/sonar-mcp-server.jar
 ```
 
-Сервер работает через `stdio`. После успешного старта он не открывает HTTP-порт, ждёт MCP-запросы через stdin/stdout.
+The server runs over `stdio`. After a successful start it opens no HTTP port and waits for MCP requests over stdin/stdout.
 
-Логи пишутся в `${SONAR_MCP_DATA_DIR:-~/.sonar-mcp-server}/logs/sonar-mcp-server.log`.
-Файл ротируется по дате и размеру: `10MB`, хранение `30` дней, общий лимит `512MB`.
+Logs are written to `${SONAR_MCP_DATA_DIR:-~/.sonar-mcp-server}/logs/sonar-mcp-server.log`.
+The file rotates by date and size: `10MB`, retention `30` days, total cap `512MB`.
 
-## Подключение к AI-клиенту
+## Connecting to an AI client
 
 ```json
 {
   "command": "java",
-  "args": ["-jar", "<абсолютный-путь>/sonar-mcp-server.jar"],
+  "args": ["-jar", "<absolute-path>/sonar-mcp-server.jar"],
   "env": {
-    "SONARQUBE_URL": "http://sonar.example.com",
-    "SONARQUBE_TOKEN": "your_token"
+    "SONAR_URL": "http://sonar.example.com",
+    "SONAR_TOKEN": "your_token"
   }
 }
 ```
 
-Куда именно:
+Where exactly:
 
-| Клиент | Способ подключения |
+| Client | How to connect |
 |---|---|
-| Claude Code | `claude mcp add --scope user -e SONARQUBE_URL=... -e SONARQUBE_TOKEN=... -- sonar java -jar /path/to/sonar-mcp-server.jar` |
-| Qwen Code | `~/.qwen/settings.json` -> `"mcpServers"` -> `"sonar"` |
+| Claude Code | `claude mcp add --scope user -e SONAR_URL=... -e SONAR_TOKEN=... -- sonar java -jar /path/to/sonar-mcp-server.jar` |
+| Qwen Code | `~/.qwen/settings.json` -> `"mcpServers"` -> `"sonar"`, or `qwen mcp add --scope user -e SONAR_URL=... -e SONAR_TOKEN=... sonar java -jar /path/to/sonar-mcp-server.jar` |
 | VS Code | `.vscode/mcp.json` -> `"servers"` -> `"sonar"` |
 | Cursor | `.cursor/mcp.json` -> `"mcpServers"` -> `"sonar"` |
 | Claude Desktop | `claude_desktop_config.json` -> `"mcpServers"` -> `"sonar"` |
 
-После добавления перезапустить клиент.
+For CLI clients there are also commands to view and remove the registration: `claude mcp list` / `claude mcp remove --scope user sonar` (similarly for `qwen`).
 
-## Эксплуатация и безопасность
+After adding, restart the client.
 
-Этот MCP-сервер предназначен для локального запуска рядом с AI-клиентом. Он не открывает HTTP-порт и не принимает входящие сетевые подключения: клиент запускает JAR как дочерний процесс и общается с ним через `stdin/stdout`.
+### Example AI-agent prompts
 
-### Модель доступа
+```text
+Find and fix Sonar issues in project my-project
+Show the top 10 rules by number of open issues in project my-project
+Show Sonar issues under src/main/java/com/example/foo
+```
 
-- Сервер использует права того пользователя SonarQube, чей токен указан в `SONARQUBE_TOKEN`.
-- Все MCP-инструменты read-only: сервер не создаёт, не изменяет и не удаляет замечания, hotspots, правила или проекты.
-- Доступные проекты и замечания определяются правами пользователя в SonarQube. Если пользователь не видит проект в SonarQube, сервер тоже не должен получить к нему доступ.
-- Токен нужно хранить как секрет. Не коммитьте его в репозиторий, shell-скрипты, `.vscode/mcp.json`, `.cursor/mcp.json` или другие общие файлы проекта.
+## Operations and security
 
-### Какие данные передаются AI-клиенту
+This MCP server is meant to run locally next to the AI client. It opens no HTTP port and accepts no incoming network connections: the client starts the JAR as a child process and talks to it over `stdin/stdout`.
 
-AI-клиент получает ровно те данные, которые запрашивает через MCP-инструменты:
+### Access model
 
-- список замечаний с правилом, severity, type, путём к файлу, номером строки, сообщением, тегами, SCM-автором;
-- история изменений замечания;
-- описания правил Sonar (включая HTML/markdown);
-- фрагменты исходного кода вокруг локаций замечаний (через `getIssueSnippets`);
-- Security Hotspots и их детали.
+- The server acts with the rights of the SonarQube user whose token is in `SONAR_TOKEN`.
+- All MCP tools are read-only: the server does not create, modify, or delete issues, hotspots, rules, or projects.
+- Available projects and issues are determined by the user's permissions in SonarQube. If the user can't see a project in SonarQube, the server shouldn't be able to access it either.
+- Treat the token as a secret. Don't commit it to the repository, shell scripts, `.vscode/mcp.json`, `.cursor/mcp.json`, or any other shared project files.
 
-Перед подключением к внешнему или облачному AI-клиенту проверьте внутренние правила компании: исходный код может содержать коммерческую тайну.
+### What data is sent to the AI client
 
-## Диагностика
+The AI client receives exactly the data it requests through the MCP tools:
 
-Проверка окружения:
+- the list of issues with rule, severity, type, file path, line number, message, tags, SCM author;
+- issue change history;
+- Sonar rule descriptions (including HTML/markdown);
+- source-code snippets around issue locations (via `getIssueSnippets`);
+- Security Hotspots and their details.
+
+Before connecting to an external or cloud-based AI client, check your company's internal policies: source code may contain trade secrets.
+
+## Diagnostics
+
+Environment check:
 
 ```bash
 java -version
-echo "$SONARQUBE_URL"
-test -n "$SONARQUBE_TOKEN" && echo "SONARQUBE_TOKEN is set"
+echo "$SONAR_URL"
+test -n "$SONAR_TOKEN" && echo "SONAR_TOKEN is set"
 ```
 
-Проверка доступа к SonarQube web-api (HTTP Basic с токеном-как-username и пустым паролем):
+SonarQube web-api access check (HTTP Basic with the token as username and empty password):
 
 ```bash
-curl -u "$SONARQUBE_TOKEN:" "$SONARQUBE_URL/api/components/search?qualifiers=TRK&p=1&ps=1"
+curl -u "$SONAR_TOKEN:" "$SONAR_URL/api/components/search?qualifiers=TRK&p=1&ps=1"
 ```
 
-Ожидаемый ответ — JSON со списком проектов. `401 Unauthorized` означает, что токен невалидный или истёкший; `403` — у пользователя нет прав на API.
+The expected response is a JSON list of projects. `401 Unauthorized` means the token is invalid or expired; `403` means the user lacks permission for the API.
 
-Проверка сборки:
+Build check:
 
 ```bash
 ./gradlew test
 ./gradlew build
 ```
 
-Проверка интеграционных тестов с живым SonarQube:
+Integration tests against a live SonarQube:
 
 ```bash
-SONARQUBE_URL=<url> SONARQUBE_TOKEN=<token> ./gradlew integrationTest
+SONAR_URL=<url> SONAR_TOKEN=<token> ./gradlew integrationTest
 ```
 
-Интеграционные тесты требуют доступный SonarQube и реальные данные. Unit-тесты по умолчанию исключают тесты с тегом `integration`.
+Integration tests require a reachable SonarQube and real data. Unit tests exclude the `integration` tag by default.
 
-### Известные эксплуатационные ограничения
+### Known operational limitations
 
-- HTTP-таймауты и retry-политика сейчас не настраиваются отдельно.
-- Sonar API использует страничную пагинацию (`p`/`ps`); инструменты принимают `offset`/`limit`, и offset, не кратный limit, округляется вниз до ближайшей границы страницы. Sonar также ограничивает `ps` сверху значением 500.
-- `pathPrefix` передаётся в Sonar как `componentKeys=<projectKey>:<pathPrefix>`. Это работает и для конкретного файла, и для каталога (рекурсивно вниз). Java-нотация (`ru.foo.bar`) сознательно не поддерживается — указывайте путь в виде, как он лежит в репозитории (например `src/main/java/ru/foo/bar`).
-- Поле `author` у `Issue` — это SCM-автор строки, в которой возникло замечание (заполняется Sonar при настроенном SCM-провайдере). Отдельных полей `scmAuthor`/`scmDate` Sonar в `issues/search` не отдаёт; для строкового SCM используйте `getIssueSnippets`.
+- HTTP timeouts and retry policy aren't separately configurable yet.
+- The Sonar API uses page-based pagination (`p`/`ps`); the tools accept `offset`/`limit`, and an offset that is not a multiple of `limit` is rounded down to the nearest page boundary. Sonar also caps `ps` at 500.
+- `pathPrefix` is passed to Sonar as `componentKeys=<projectKey>:<pathPrefix>`. This works both for a specific file and for a directory (recursively). Java notation (`com.example.foo`) is intentionally not supported — pass the path as it lives in the repository (e.g. `src/main/java/com/example/foo`).
+- The `author` field on `Issue` is the SCM author of the line where the issue occurred (populated by Sonar when an SCM provider is configured). Sonar doesn't return separate `scmAuthor`/`scmDate` fields in `issues/search`; for line-level SCM use `getIssueSnippets`.
 
-## Структура проекта
+## Project layout
 
 ```
 ├── src/main/java/ru/it_spectrum/ai/sonar/mcp/
-│   ├── SonarMcpServerApplication.java   — точка входа Spring Boot
-│   ├── api/                              — стабильный MCP wire format: records, возвращаемые tools/services
+│   ├── SonarMcpServerApplication.java   — Spring Boot entry point
+│   ├── api/                              — stable MCP wire format: records returned by tools/services
 │   │   ├── Issue.java, IssuePage.java, IssueDetails.java, IssueLocation.java, IssueFlow.java
 │   │   ├── Project.java, ProjectPage.java
 │   │   ├── RuleDetails.java, RuleSection.java
@@ -236,37 +255,37 @@ SONARQUBE_URL=<url> SONARQUBE_TOKEN=<token> ./gradlew integrationTest
 │   │   ├── TextRange.java, FacetCount.java
 │   │   └── ProjectIssuesSummary.java
 │   ├── client/
-│   │   ├── SonarClient.java              — обёртка над SonarQube web-api
-│   │   └── model/                        — raw DTO SonarQube web-api, не экспортируются напрямую в MCP
+│   │   ├── SonarClient.java              — SonarQube web-api wrapper
+│   │   └── model/                        — raw DTOs of the SonarQube web-api, not exposed directly via MCP
 │   │       └── Sonar*.java
 │   ├── config/
-│   │   ├── SonarClientProperties.java   — url + token из env
-│   │   ├── SonarMcpProperties.java      — все runtime-настройки sonar-mcp.*
-│   │   ├── SonarConfig.java             — RestClient с Basic auth
-│   │   ├── McpServerConfig.java         — stdio MCP customizer с immediateExecution(true)
-│   │   └── JsonConfig.java              — ObjectMapper для MCP JSON
+│   │   ├── SonarClientProperties.java   — url + token from env
+│   │   ├── SonarMcpProperties.java      — all sonar-mcp.* runtime settings
+│   │   ├── SonarConfig.java             — RestClient with Basic auth
+│   │   ├── McpServerConfig.java         — stdio MCP customizer with immediateExecution(true)
+│   │   └── JsonConfig.java              — ObjectMapper for MCP JSON
 │   ├── service/
 │   │   ├── ProjectService.java
 │   │   ├── IssueService.java
-│   │   ├── RuleService.java             — c in-memory кэшем правил
+│   │   ├── RuleService.java             — with in-memory rule cache
 │   │   ├── SnippetService.java
 │   │   ├── HotspotService.java
 │   │   ├── PaginationHelper.java        — offset/limit -> p/ps
-│   │   └── SonarMappers.java            — маппинг client.model -> api
+│   │   └── SonarMappers.java            — client.model -> api mapping
 │   └── tools/
-│       ├── ProjectTools.java            — 1 MCP-инструмент
-│       ├── IssueTools.java              — 4 MCP-инструмента
-│       ├── RuleTools.java               — 1 MCP-инструмент
-│       ├── HotspotTools.java            — 2 MCP-инструмента
+│       ├── ProjectTools.java            — 1 MCP tool
+│       ├── IssueTools.java              — 4 MCP tools
+│       ├── RuleTools.java               — 1 MCP tool
+│       ├── HotspotTools.java            — 2 MCP tools
 │       └── ToolLogger.java
 └── src/main/resources/
-    ├── application.yml                  — конфигурация MCP-сервера (stdio)
-    └── logback-spring.xml               — конфигурация логирования
+    ├── application.yml                  — MCP server configuration (stdio)
+    └── logback-spring.xml               — logging configuration
 ```
 
 ## Troubleshooting
 
-- **«Gradle requires JVM 17 or later»** — установить `JAVA_HOME` на JDK 25+.
-- **Connection refused / 401** — проверить URL и токен. Тест: `curl -u "$SONARQUBE_TOKEN:" "$SONARQUBE_URL/api/components/search?qualifiers=TRK&p=1&ps=1"`.
-- **403 Forbidden** — у пользователя токена нет прав на проект или на web-api. Проверить роль в SonarQube.
-- **Empty pathPrefix не работает / возвращает 0** — путь должен совпадать с тем, как файлы лежат в репозитории. Если у вас multi-module Gradle/Maven, имя модуля идёт в начале (например `apps/ssj/backend/bc/...`).
+- **"Gradle requires JVM 17 or later"** — set `JAVA_HOME` to a JDK 25+.
+- **Connection refused / 401** — check URL and token. Test: `curl -u "$SONAR_TOKEN:" "$SONAR_URL/api/components/search?qualifiers=TRK&p=1&ps=1"`.
+- **403 Forbidden** — the token user has no rights on the project or on the web-api. Check the role in SonarQube.
+- **Empty pathPrefix doesn't work / returns 0** — the path must match the way files live in the repository. In a multi-module Gradle/Maven layout the module name comes first (e.g. `apps/my-module/backend/...`).

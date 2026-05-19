@@ -3,9 +3,7 @@
 This file is for AI agents (and humans) **modifying the source code** of this repository.
 It is **not** a setup guide for end users — for that, see:
 
-- [README.md](README.md) — product description, MCP tool catalogue, env vars, security model.
-- [CLAUDE_CODE_SETUP.md](CLAUDE_CODE_SETUP.md), [QWEN_CODE_SETUP.md](QWEN_CODE_SETUP.md) — step-by-step
-  guides for installing this server on an end-user machine.
+- [README.md](README.md) — product description, MCP tool catalogue, env vars, security model, client-specific setup.
 
 Read this file before changing code.
 
@@ -51,14 +49,14 @@ All commands assume `JAVA_HOME` points to JDK 25+.
 ```bash
 ./gradlew build              # compile + unit tests + bootJar
 ./gradlew test               # unit tests only (excludes @Tag("integration"))
-./gradlew integrationTest    # smoke tests against a live SonarQube (needs SONARQUBE_URL/TOKEN)
+./gradlew integrationTest    # smoke tests against a live SonarQube (needs SONAR_URL/TOKEN)
 ./gradlew bootJar            # build/libs/sonar-mcp-server.jar
 ```
 
 To run the server manually:
 
 ```bash
-SONARQUBE_URL=... SONARQUBE_TOKEN=... java -jar build/libs/sonar-mcp-server.jar
+SONAR_URL=... SONAR_TOKEN=... java -jar build/libs/sonar-mcp-server.jar
 ```
 
 The server runs in stdio mode; logs go to `${SONAR_MCP_DATA_DIR:-~/.sonar-mcp-server}/logs/`.
@@ -122,7 +120,7 @@ directly from a tool — go through a service. Never return a `client.model.*` t
   `MockRestServiceServer.bindTo(builder)` to verify URL building and JSON parsing without
   hitting the network. Service tests mock `SonarClient`.
 - **Integration tests** (`@Tag("integration")`, `./gradlew integrationTest`) — boot the whole
-  Spring context and call a live SonarQube using `SONARQUBE_URL` and `SONARQUBE_TOKEN` from env.
+  Spring context and call a live SonarQube using `SONAR_URL` and `SONAR_TOKEN` from env.
   Excluded from the default `test` task.
 
 Add a unit test for any new mapping rule, parameter default, or error path.

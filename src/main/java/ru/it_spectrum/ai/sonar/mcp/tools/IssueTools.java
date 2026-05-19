@@ -9,6 +9,7 @@ import ru.it_spectrum.ai.sonar.mcp.api.IssueDetails;
 import ru.it_spectrum.ai.sonar.mcp.api.IssuePage;
 import ru.it_spectrum.ai.sonar.mcp.api.IssueSnippets;
 import ru.it_spectrum.ai.sonar.mcp.api.ProjectIssuesSummary;
+import ru.it_spectrum.ai.sonar.mcp.config.SonarClientProperties;
 import ru.it_spectrum.ai.sonar.mcp.config.SonarMcpProperties;
 import ru.it_spectrum.ai.sonar.mcp.service.IssueNotFoundException;
 import ru.it_spectrum.ai.sonar.mcp.service.IssueService;
@@ -22,12 +23,26 @@ public class IssueTools {
     private final IssueService issueService;
     private final SnippetService snippetService;
     private final SonarMcpProperties properties;
+    private final SonarClientProperties sonarProperties;
 
     public IssueTools(IssueService issueService, SnippetService snippetService,
-                      SonarMcpProperties properties) {
+                      SonarMcpProperties properties, SonarClientProperties sonarProperties) {
         this.issueService = issueService;
         this.snippetService = snippetService;
         this.properties = properties;
+        this.sonarProperties = sonarProperties;
+    }
+
+    private String resolveProjectKey(String projectKey) {
+        if (projectKey != null && !projectKey.isBlank()) {
+            return projectKey;
+        }
+        String fallback = sonarProperties.defaultProjectKey();
+        if (fallback != null && !fallback.isBlank()) {
+            return fallback;
+        }
+        throw new IllegalArgumentException(
+                "projectKey is required: no value passed and no default configured (set SONAR_DEFAULT_PROJECT_KEY)");
     }
 
     @McpTool(
@@ -41,7 +56,7 @@ public class IssueTools {
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public IssuePage listIssues(
-            @McpToolParam(description = "Sonar project key (required). Use listProjects to find it.") String projectKey,
+            @McpToolParam(description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured on the server; otherwise required. Use listProjects to find it.", required = false) String projectKey,
             @McpToolParam(description = "Path prefix to filter, relative to project root (optional). Example: src/main/java/ru/foo/bar", required = false) String pathPrefix,
             @McpToolParam(description = "Severities: comma-separated, any of INFO,MINOR,MAJOR,CRITICAL,BLOCKER (optional)", required = false) String severities,
             @McpToolParam(description = "Types: comma-separated, any of CODE_SMELL,BUG,VULNERABILITY (optional)", required = false) String types,
@@ -52,12 +67,13 @@ public class IssueTools {
             @McpToolParam(description = "Maximum number of results per page, uses configured default when omitted (Sonar caps at 500)", required = false) Integer limit,
             @McpToolParam(description = "Offset for pagination, default 0. Internally rounded down to a page boundary.", required = false) Integer offset
     ) {
+        String actualProjectKey = resolveProjectKey(projectKey);
         log.info("Tool call: listIssues (projectKey={}, pathPrefix={}, severities={}, types={}, statuses={}, rules={}, branch={}, resolved={}, limit={}, offset={})",
-                projectKey, pathPrefix, severities, types, statuses, rules, branch, resolved, limit, offset);
+                actualProjectKey, pathPrefix, severities, types, statuses, rules, branch, resolved, limit, offset);
         long start = System.nanoTime();
         int actualLimit = limit != null ? limit : properties.pagination().defaultLimit();
         int actualOffset = offset != null ? offset : properties.pagination().defaultOffset();
-        IssuePage result = issueService.list(projectKey, pathPrefix, severities, types, statuses,
+        IssuePage result = issueService.list(actualProjectKey, pathPrefix, severities, types, statuses,
                 rules, branch, resolved, actualOffset, actualLimit);
         ToolLogger.completed(log, "listIssues", start);
         return result;
@@ -109,14 +125,15 @@ public class IssueTools {
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public ProjectIssuesSummary getProjectIssuesSummary(
-            @McpToolParam(description = "Sonar project key") String projectKey,
+            @McpToolParam(description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured on the server; otherwise required.", required = false) String projectKey,
             @McpToolParam(description = "Path prefix to scope to a subdirectory (optional)", required = false) String pathPrefix,
             @McpToolParam(description = "Sonar branch name (optional)", required = false) String branch
     ) {
+        String actualProjectKey = resolveProjectKey(projectKey);
         log.info("Tool call: getProjectIssuesSummary (projectKey={}, pathPrefix={}, branch={})",
-                projectKey, pathPrefix, branch);
+                actualProjectKey, pathPrefix, branch);
         long start = System.nanoTime();
-        ProjectIssuesSummary result = issueService.projectSummary(projectKey, pathPrefix, branch);
+        ProjectIssuesSummary result = issueService.projectSummary(actualProjectKey, pathPrefix, branch);
         ToolLogger.completed(log, "getProjectIssuesSummary", start);
         return result;
     }

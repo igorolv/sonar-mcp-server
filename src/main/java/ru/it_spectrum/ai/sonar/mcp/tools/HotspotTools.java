@@ -7,6 +7,7 @@ import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Service;
 import ru.it_spectrum.ai.sonar.mcp.api.HotspotDetails;
 import ru.it_spectrum.ai.sonar.mcp.api.HotspotPage;
+import ru.it_spectrum.ai.sonar.mcp.config.SonarClientProperties;
 import ru.it_spectrum.ai.sonar.mcp.config.SonarMcpProperties;
 import ru.it_spectrum.ai.sonar.mcp.service.HotspotNotFoundException;
 import ru.it_spectrum.ai.sonar.mcp.service.HotspotService;
@@ -18,10 +19,25 @@ public class HotspotTools {
 
     private final HotspotService hotspotService;
     private final SonarMcpProperties properties;
+    private final SonarClientProperties sonarProperties;
 
-    public HotspotTools(HotspotService hotspotService, SonarMcpProperties properties) {
+    public HotspotTools(HotspotService hotspotService, SonarMcpProperties properties,
+                        SonarClientProperties sonarProperties) {
         this.hotspotService = hotspotService;
         this.properties = properties;
+        this.sonarProperties = sonarProperties;
+    }
+
+    private String resolveProjectKey(String projectKey) {
+        if (projectKey != null && !projectKey.isBlank()) {
+            return projectKey;
+        }
+        String fallback = sonarProperties.defaultProjectKey();
+        if (fallback != null && !fallback.isBlank()) {
+            return fallback;
+        }
+        throw new IllegalArgumentException(
+                "projectKey is required: no value passed and no default configured (set SONAR_DEFAULT_PROJECT_KEY)");
     }
 
     @McpTool(
@@ -32,19 +48,20 @@ public class HotspotTools {
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public HotspotPage listHotspots(
-            @McpToolParam(description = "Sonar project key") String projectKey,
+            @McpToolParam(description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured on the server; otherwise required.", required = false) String projectKey,
             @McpToolParam(description = "File path or comma-separated paths to scope the search (optional)", required = false) String pathPrefix,
             @McpToolParam(description = "Status: TO_REVIEW or REVIEWED (optional, default TO_REVIEW)", required = false) String status,
             @McpToolParam(description = "Sonar branch name (optional)", required = false) String branch,
             @McpToolParam(description = "Maximum number of results, uses configured default when omitted", required = false) Integer limit,
             @McpToolParam(description = "Offset for pagination, default 0", required = false) Integer offset
     ) {
+        String actualProjectKey = resolveProjectKey(projectKey);
         log.info("Tool call: listHotspots (projectKey={}, pathPrefix={}, status={}, branch={}, limit={}, offset={})",
-                projectKey, pathPrefix, status, branch, limit, offset);
+                actualProjectKey, pathPrefix, status, branch, limit, offset);
         long start = System.nanoTime();
         int actualLimit = limit != null ? limit : properties.pagination().defaultLimit();
         int actualOffset = offset != null ? offset : properties.pagination().defaultOffset();
-        HotspotPage result = hotspotService.list(projectKey, pathPrefix, status, branch,
+        HotspotPage result = hotspotService.list(actualProjectKey, pathPrefix, status, branch,
                 actualOffset, actualLimit);
         ToolLogger.completed(log, "listHotspots", start);
         return result;

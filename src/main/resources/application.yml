@@ -19,5 +19,6 @@ sonar-mcp:
     max-lines: ${SONAR_MCP_SNIPPET_MAX_LINES:50}
 
 sonar:
-  url: ${SONARQUBE_URL:${SONAR_URL:}}
-  token: ${SONARQUBE_TOKEN:${SONAR_TOKEN:}}
+  url: ${SONAR_URL:}
+  token: ${SONAR_TOKEN:}
+  default-project-key: ${SONAR_DEFAULT_PROJECT_KEY:}
