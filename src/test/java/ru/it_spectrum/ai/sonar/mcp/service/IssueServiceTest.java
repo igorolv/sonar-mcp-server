@@ -89,7 +89,7 @@ class IssueServiceTest {
     @Test
     void findOneThrowsWhenIssueMissing() {
         when(client.searchIssues(any())).thenReturn(emptyResponse());
-        assertThatThrownBy(() -> service.findOne("KEY-MISSING"))
+        assertThatThrownBy(() -> service.findOne("KEY-MISSING", null))
                 .isInstanceOf(IssueNotFoundException.class);
     }
 
@@ -104,7 +104,7 @@ class IssueServiceTest {
                 List.of(), List.of(), List.of()));
         when(client.getIssueChangelog("KEY1")).thenReturn(new SonarChangelogResponse(List.of()));
 
-        var details = service.findOne("KEY1");
+        var details = service.findOne("KEY1", null);
 
         assertThat(details.issue().key()).isEqualTo("KEY1");
         assertThat(details.changelog()).isEmpty();

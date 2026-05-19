@@ -120,12 +120,16 @@ public class SonarClient {
      * Source snippets around all locations of an issue via /api/sources/issue_snippets.
      * Returns a map keyed by component key.
      */
-    public Map<String, SonarIssueSnippet> getIssueSnippets(String issueKey) {
+    public Map<String, SonarIssueSnippet> getIssueSnippets(String issueKey, String branch) {
         String body = restClient.get()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/api/sources/issue_snippets")
-                        .queryParam("issueKey", issueKey)
-                        .build())
+                .uri(uriBuilder -> {
+                    UriBuilder b = uriBuilder.path("/api/sources/issue_snippets")
+                            .queryParam("issueKey", issueKey);
+                    if (branch != null && !branch.isBlank()) {
+                        b.queryParam("branch", branch);
+                    }
+                    return b.build();
+                })
                 .retrieve()
                 .body(String.class);
 
@@ -195,14 +199,18 @@ public class SonarClient {
     /**
      * Source lines via /api/sources/show. Used as a fallback when issue_snippets is unavailable.
      */
-    public List<SonarSourceLine> getSourceLines(String componentKey, int from, int to) {
+    public List<SonarSourceLine> getSourceLines(String componentKey, int from, int to, String branch) {
         var response = restClient.get()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/api/sources/show")
-                        .queryParam("key", componentKey)
-                        .queryParam("from", from)
-                        .queryParam("to", to)
-                        .build())
+                .uri(uriBuilder -> {
+                    UriBuilder b = uriBuilder.path("/api/sources/show")
+                            .queryParam("key", componentKey)
+                            .queryParam("from", from)
+                            .queryParam("to", to);
+                    if (branch != null && !branch.isBlank()) {
+                        b.queryParam("branch", branch);
+                    }
+                    return b.build();
+                })
                 .retrieve()
                 .body(new ParameterizedTypeReference<Map<String, List<List<Object>>>>() {});
 

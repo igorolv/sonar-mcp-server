@@ -6,6 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record SonarClientProperties(
         String url,
         String token,
-        String defaultProjectKey
+        String defaultProjectKey,
+        String defaultBranch
 ) {
 }

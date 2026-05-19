@@ -147,7 +147,7 @@ class SonarClientTest {
                         }
                         """, MediaType.APPLICATION_JSON));
 
-        var snippets = client.getIssueSnippets("KEY1");
+        var snippets = client.getIssueSnippets("KEY1", null);
 
         assertThat(snippets).containsKey("asv:src/main/java/Foo.java");
         var snippet = snippets.get("asv:src/main/java/Foo.java");

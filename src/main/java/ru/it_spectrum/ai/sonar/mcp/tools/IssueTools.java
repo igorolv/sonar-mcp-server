@@ -45,6 +45,17 @@ public class IssueTools {
                 "projectKey is required: no value passed and no default configured (set SONAR_DEFAULT_PROJECT_KEY)");
     }
 
+    private String resolveBranch(String branch) {
+        if (branch != null && !branch.isBlank()) {
+            return branch;
+        }
+        String fallback = sonarProperties.defaultBranch();
+        if (fallback != null && !fallback.isBlank()) {
+            return fallback;
+        }
+        return null;
+    }
+
     @McpTool(
             description = "List SonarQube issues for a project. Each item includes rule, severity, type, " +
             "status, message, file path (componentPath), line, primary textRange, and secondary flows " +
@@ -62,19 +73,20 @@ public class IssueTools {
             @McpToolParam(description = "Types: comma-separated, any of CODE_SMELL,BUG,VULNERABILITY (optional)", required = false) String types,
             @McpToolParam(description = "Statuses: comma-separated, any of OPEN,CONFIRMED,REOPENED,RESOLVED,CLOSED (optional). If both statuses and resolved are omitted, returns only open issues.", required = false) String statuses,
             @McpToolParam(description = "Rule keys: comma-separated (e.g. 'java:S1234,javascript:S5678') (optional)", required = false) String rules,
-            @McpToolParam(description = "Sonar branch name (optional). When omitted, Sonar uses the main branch.", required = false) String branch,
+            @McpToolParam(description = "Sonar branch name (optional). Falls back to SONAR_DEFAULT_BRANCH if configured; otherwise Sonar uses the main branch.", required = false) String branch,
             @McpToolParam(description = "Filter by resolved state: true / false (optional). When omitted with no statuses, defaults to false (open issues).", required = false) Boolean resolved,
             @McpToolParam(description = "Maximum number of results per page, uses configured default when omitted (Sonar caps at 500)", required = false) Integer limit,
             @McpToolParam(description = "Offset for pagination, default 0. Internally rounded down to a page boundary.", required = false) Integer offset
     ) {
         String actualProjectKey = resolveProjectKey(projectKey);
+        String actualBranch = resolveBranch(branch);
         log.info("Tool call: listIssues (projectKey={}, pathPrefix={}, severities={}, types={}, statuses={}, rules={}, branch={}, resolved={}, limit={}, offset={})",
-                actualProjectKey, pathPrefix, severities, types, statuses, rules, branch, resolved, limit, offset);
+                actualProjectKey, pathPrefix, severities, types, statuses, rules, actualBranch, resolved, limit, offset);
         long start = System.nanoTime();
         int actualLimit = limit != null ? limit : properties.pagination().defaultLimit();
         int actualOffset = offset != null ? offset : properties.pagination().defaultOffset();
         IssuePage result = issueService.list(actualProjectKey, pathPrefix, severities, types, statuses,
-                rules, branch, resolved, actualOffset, actualLimit);
+                rules, actualBranch, resolved, actualOffset, actualLimit);
         ToolLogger.completed(log, "listIssues", start);
         return result;
     }
@@ -86,12 +98,14 @@ public class IssueTools {
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public IssueDetails getIssue(
-            @McpToolParam(description = "Sonar issue key (e.g. 'AXabc123...')") String issueKey
+            @McpToolParam(description = "Sonar issue key (e.g. 'AXabc123...')") String issueKey,
+            @McpToolParam(description = "Sonar branch name (optional). Falls back to SONAR_DEFAULT_BRANCH if configured; otherwise Sonar uses the main branch. Issue keys are unique per branch, but passing branch ensures the lookup is scoped correctly when the same key exists across branches.", required = false) String branch
     ) {
-        log.info("Tool call: getIssue (issueKey={})", issueKey);
+        String actualBranch = resolveBranch(branch);
+        log.info("Tool call: getIssue (issueKey={}, branch={})", issueKey, actualBranch);
         long start = System.nanoTime();
         try {
-            IssueDetails result = issueService.findOne(issueKey);
+            IssueDetails result = issueService.findOne(issueKey, actualBranch);
             ToolLogger.completed(log, "getIssue", start);
             return result;
         } catch (IssueNotFoundException e) {
@@ -108,11 +122,13 @@ public class IssueTools {
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public IssueSnippets getIssueSnippets(
-            @McpToolParam(description = "Sonar issue key") String issueKey
+            @McpToolParam(description = "Sonar issue key") String issueKey,
+            @McpToolParam(description = "Sonar branch name (optional). Falls back to SONAR_DEFAULT_BRANCH if configured. Required when the issue lives on a non-main branch whose files differ from main — without it Sonar may return snippets from the main branch's version of the file.", required = false) String branch
     ) {
-        log.info("Tool call: getIssueSnippets (issueKey={})", issueKey);
+        String actualBranch = resolveBranch(branch);
+        log.info("Tool call: getIssueSnippets (issueKey={}, branch={})", issueKey, actualBranch);
         long start = System.nanoTime();
-        IssueSnippets result = snippetService.getForIssue(issueKey);
+        IssueSnippets result = snippetService.getForIssue(issueKey, actualBranch);
         ToolLogger.completed(log, "getIssueSnippets", start);
         return result;
     }
@@ -127,13 +143,14 @@ public class IssueTools {
     public ProjectIssuesSummary getProjectIssuesSummary(
             @McpToolParam(description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured on the server; otherwise required.", required = false) String projectKey,
             @McpToolParam(description = "Path prefix to scope to a subdirectory (optional)", required = false) String pathPrefix,
-            @McpToolParam(description = "Sonar branch name (optional)", required = false) String branch
+            @McpToolParam(description = "Sonar branch name (optional). Falls back to SONAR_DEFAULT_BRANCH if configured.", required = false) String branch
     ) {
         String actualProjectKey = resolveProjectKey(projectKey);
+        String actualBranch = resolveBranch(branch);
         log.info("Tool call: getProjectIssuesSummary (projectKey={}, pathPrefix={}, branch={})",
-                actualProjectKey, pathPrefix, branch);
+                actualProjectKey, pathPrefix, actualBranch);
         long start = System.nanoTime();
-        ProjectIssuesSummary result = issueService.projectSummary(actualProjectKey, pathPrefix, branch);
+        ProjectIssuesSummary result = issueService.projectSummary(actualProjectKey, pathPrefix, actualBranch);
         ToolLogger.completed(log, "getProjectIssuesSummary", start);
         return result;
     }

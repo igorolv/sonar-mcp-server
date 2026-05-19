@@ -63,12 +63,13 @@ public class IssueService {
         return mapIssuePage(response, offset, page.pageSize());
     }
 
-    public IssueDetails findOne(String issueKey) {
+    public IssueDetails findOne(String issueKey, String branch) {
         if (issueKey == null || issueKey.isBlank()) {
             throw new IllegalArgumentException("issueKey is required");
         }
         var params = SonarClient.IssueSearchParams.builder()
                 .issues(issueKey)
+                .branch(branch)
                 .pageIndex(1)
                 .pageSize(1)
                 .build();

@@ -22,3 +22,4 @@ sonar:
   url: ${SONAR_URL:}
   token: ${SONAR_TOKEN:}
   default-project-key: ${SONAR_DEFAULT_PROJECT_KEY:}
+  default-branch: ${SONAR_DEFAULT_BRANCH:}

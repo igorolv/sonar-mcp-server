@@ -51,6 +51,11 @@ public class SonarConfig {
             log.info("Default Sonar project key: {} (used when tool calls omit projectKey)", defaultProjectKey);
         }
 
+        String defaultBranch = properties.defaultBranch();
+        if (defaultBranch != null && !defaultBranch.isBlank()) {
+            log.info("Default Sonar branch: {} (used when tool calls omit branch)", defaultBranch);
+        }
+
         return builder.build();
     }
 }

@@ -100,6 +100,7 @@ The server needs a SonarQube URL and token; the rest is optional.
 | `SONAR_URL` | SonarQube base URL (e.g. `http://sonar.example.com`) |
 | `SONAR_TOKEN` | SonarQube user token |
 | `SONAR_DEFAULT_PROJECT_KEY` | Default SonarQube project key. When set, `listIssues`, `getProjectIssuesSummary`, `listHotspots` can be called without `projectKey`. |
+| `SONAR_DEFAULT_BRANCH` | Default Sonar branch. When set, all branch-aware tools (`listIssues`, `getIssue`, `getIssueSnippets`, `getProjectIssuesSummary`, `listHotspots`) fall back to this branch when `branch` is omitted. Without it Sonar uses the project's main branch. |
 | `SONAR_MCP_DATA_DIR` | Local data directory for the server; defaults to `~/.sonar-mcp-server` |
 | `SONAR_MCP_PAGINATION_DEFAULT_LIMIT` | Default page limit for list tools; defaults to `50` |
 | `SONAR_MCP_PAGINATION_DEFAULT_OFFSET` | Default offset for list tools; defaults to `0` |
