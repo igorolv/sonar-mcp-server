@@ -32,8 +32,8 @@ public class IssueService {
     }
 
     public IssuePage list(String projectKey, String pathPrefix, String severities, String types,
-                          String statuses, String rules, String branch, Boolean resolved,
-                          int offset, int limit) {
+                          String statuses, String rules, String branch, String pullRequest,
+                          Boolean resolved, int offset, int limit) {
         if (projectKey == null || projectKey.isBlank()) {
             throw new IllegalArgumentException("projectKey is required");
         }
@@ -54,6 +54,7 @@ public class IssueService {
                 .statuses(effectiveStatuses)
                 .rules(rules)
                 .branch(branch)
+                .pullRequest(pullRequest)
                 .resolved(effectiveResolved)
                 .pageIndex(page.pageIndex())
                 .pageSize(page.pageSize())
@@ -63,13 +64,14 @@ public class IssueService {
         return mapIssuePage(response, offset, page.pageSize());
     }
 
-    public IssueDetails findOne(String issueKey, String branch) {
+    public IssueDetails findOne(String issueKey, String branch, String pullRequest) {
         if (issueKey == null || issueKey.isBlank()) {
             throw new IllegalArgumentException("issueKey is required");
         }
         var params = SonarClient.IssueSearchParams.builder()
                 .issues(issueKey)
                 .branch(branch)
+                .pullRequest(pullRequest)
                 .pageIndex(1)
                 .pageSize(1)
                 .build();
@@ -87,7 +89,8 @@ public class IssueService {
         return new IssueDetails(issue, entries);
     }
 
-    public ProjectIssuesSummary projectSummary(String projectKey, String pathPrefix, String branch) {
+    public ProjectIssuesSummary projectSummary(String projectKey, String pathPrefix,
+                                               String branch, String pullRequest) {
         if (projectKey == null || projectKey.isBlank()) {
             throw new IllegalArgumentException("projectKey is required");
         }
@@ -96,6 +99,7 @@ public class IssueService {
         var params = SonarClient.IssueSearchParams.builder()
                 .componentKeys(componentKeys)
                 .branch(branch)
+                .pullRequest(pullRequest)
                 .resolved(false)
                 .statuses(DEFAULT_OPEN_STATUSES)
                 .facets(facets)

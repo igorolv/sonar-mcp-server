@@ -18,11 +18,11 @@ public class SnippetService {
         this.client = client;
     }
 
-    public IssueSnippets getForIssue(String issueKey, String branch) {
+    public IssueSnippets getForIssue(String issueKey, String branch, String pullRequest) {
         if (issueKey == null || issueKey.isBlank()) {
             throw new IllegalArgumentException("issueKey is required");
         }
-        Map<String, SonarIssueSnippet> raw = client.getIssueSnippets(issueKey, branch);
+        Map<String, SonarIssueSnippet> raw = client.getIssueSnippets(issueKey, branch, pullRequest);
         if (raw == null || raw.isEmpty()) {
             return new IssueSnippets(issueKey, List.of());
         }

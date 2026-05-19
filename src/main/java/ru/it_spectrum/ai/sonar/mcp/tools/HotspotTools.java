@@ -11,6 +11,7 @@ import ru.it_spectrum.ai.sonar.mcp.config.SonarClientProperties;
 import ru.it_spectrum.ai.sonar.mcp.config.SonarMcpProperties;
 import ru.it_spectrum.ai.sonar.mcp.service.HotspotNotFoundException;
 import ru.it_spectrum.ai.sonar.mcp.service.HotspotService;
+import ru.it_spectrum.ai.sonar.mcp.tools.RefResolver.Ref;
 
 @Service
 public class HotspotTools {
@@ -40,15 +41,8 @@ public class HotspotTools {
                 "projectKey is required: no value passed and no default configured (set SONAR_DEFAULT_PROJECT_KEY)");
     }
 
-    private String resolveBranch(String branch) {
-        if (branch != null && !branch.isBlank()) {
-            return branch;
-        }
-        String fallback = sonarProperties.defaultBranch();
-        if (fallback != null && !fallback.isBlank()) {
-            return fallback;
-        }
-        return null;
+    private Ref resolveRef(String branch, String pullRequest) {
+        return RefResolver.resolve(branch, pullRequest, sonarProperties.defaultBranch());
     }
 
     @McpTool(
@@ -62,18 +56,19 @@ public class HotspotTools {
             @McpToolParam(description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured on the server; otherwise required.", required = false) String projectKey,
             @McpToolParam(description = "File path or comma-separated paths to scope the search (optional)", required = false) String pathPrefix,
             @McpToolParam(description = "Status: TO_REVIEW or REVIEWED (optional, default TO_REVIEW)", required = false) String status,
-            @McpToolParam(description = "Sonar branch name (optional). Falls back to SONAR_DEFAULT_BRANCH if configured.", required = false) String branch,
+            @McpToolParam(description = "Sonar branch name (optional). Falls back to SONAR_DEFAULT_BRANCH if configured. Mutually exclusive with pullRequest.", required = false) String branch,
+            @McpToolParam(description = "Sonar pull request key. Mutually exclusive with branch.", required = false) String pullRequest,
             @McpToolParam(description = "Maximum number of results, uses configured default when omitted", required = false) Integer limit,
             @McpToolParam(description = "Offset for pagination, default 0", required = false) Integer offset
     ) {
         String actualProjectKey = resolveProjectKey(projectKey);
-        String actualBranch = resolveBranch(branch);
-        log.info("Tool call: listHotspots (projectKey={}, pathPrefix={}, status={}, branch={}, limit={}, offset={})",
-                actualProjectKey, pathPrefix, status, actualBranch, limit, offset);
+        Ref ref = resolveRef(branch, pullRequest);
+        log.info("Tool call: listHotspots (projectKey={}, pathPrefix={}, status={}, branch={}, pullRequest={}, limit={}, offset={})",
+                actualProjectKey, pathPrefix, status, ref.branch(), ref.pullRequest(), limit, offset);
         long start = System.nanoTime();
         int actualLimit = limit != null ? limit : properties.pagination().defaultLimit();
         int actualOffset = offset != null ? offset : properties.pagination().defaultOffset();
-        HotspotPage result = hotspotService.list(actualProjectKey, pathPrefix, status, actualBranch,
+        HotspotPage result = hotspotService.list(actualProjectKey, pathPrefix, status, ref.branch(), ref.pullRequest(),
                 actualOffset, actualLimit);
         ToolLogger.completed(log, "listHotspots", start);
         return result;

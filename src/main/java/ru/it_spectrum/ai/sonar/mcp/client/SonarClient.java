@@ -6,12 +6,17 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriBuilder;
+import ru.it_spectrum.ai.sonar.mcp.client.model.SonarBranchesResponse;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarChangelogResponse;
+import ru.it_spectrum.ai.sonar.mcp.client.model.SonarComponentShowResponse;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarComponentsResponse;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarHotspotDetails;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarHotspotsResponse;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarIssueSnippet;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarIssuesResponse;
+import ru.it_spectrum.ai.sonar.mcp.client.model.SonarMeasuresResponse;
+import ru.it_spectrum.ai.sonar.mcp.client.model.SonarPullRequestsResponse;
+import ru.it_spectrum.ai.sonar.mcp.client.model.SonarQualityGateStatusResponse;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarRule;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarRuleResponse;
 
@@ -26,8 +31,9 @@ import java.util.stream.Collectors;
  * Read-only wrapper over SonarQube 9 web-api.
  * <p>
  * Auth: HTTP Basic with user token as username and empty password — handled by RestClient defaults.
- * Endpoints used: components/search, issues/search, issues/changelog, rules/show,
- * sources/issue_snippets, hotspots/search, hotspots/show.
+ * Endpoints used: components/search, components/show, measures/component, qualitygates/project_status,
+ * project_branches/list, project_pull_requests/list, issues/search, issues/changelog, rules/show,
+ * sources/issue_snippets, sources/show, hotspots/search, hotspots/show.
  */
 @Component
 public class SonarClient {
@@ -120,13 +126,16 @@ public class SonarClient {
      * Source snippets around all locations of an issue via /api/sources/issue_snippets.
      * Returns a map keyed by component key.
      */
-    public Map<String, SonarIssueSnippet> getIssueSnippets(String issueKey, String branch) {
+    public Map<String, SonarIssueSnippet> getIssueSnippets(String issueKey, String branch, String pullRequest) {
         String body = restClient.get()
                 .uri(uriBuilder -> {
                     UriBuilder b = uriBuilder.path("/api/sources/issue_snippets")
                             .queryParam("issueKey", issueKey);
                     if (branch != null && !branch.isBlank()) {
                         b.queryParam("branch", branch);
+                    }
+                    if (pullRequest != null && !pullRequest.isBlank()) {
+                        b.queryParam("pullRequest", pullRequest);
                     }
                     return b.build();
                 })
@@ -197,9 +206,100 @@ public class SonarClient {
     }
 
     /**
+     * Project / component header via /api/components/show?component=...
+     */
+    public SonarComponentShowResponse showComponent(String componentKey, String branch, String pullRequest) {
+        return restClient.get()
+                .uri(uriBuilder -> {
+                    UriBuilder b = uriBuilder.path("/api/components/show")
+                            .queryParam("component", componentKey);
+                    if (branch != null && !branch.isBlank()) {
+                        b.queryParam("branch", branch);
+                    }
+                    if (pullRequest != null && !pullRequest.isBlank()) {
+                        b.queryParam("pullRequest", pullRequest);
+                    }
+                    return b.build();
+                })
+                .retrieve()
+                .body(SonarComponentShowResponse.class);
+    }
+
+    /**
+     * Project measures via /api/measures/component. metricKeys is a comma-separated list of Sonar metric keys.
+     */
+    public SonarMeasuresResponse getComponentMeasures(String componentKey, String metricKeys,
+                                                      String branch, String pullRequest) {
+        return restClient.get()
+                .uri(uriBuilder -> {
+                    UriBuilder b = uriBuilder.path("/api/measures/component")
+                            .queryParam("component", componentKey)
+                            .queryParam("metricKeys", metricKeys);
+                    if (branch != null && !branch.isBlank()) {
+                        b.queryParam("branch", branch);
+                    }
+                    if (pullRequest != null && !pullRequest.isBlank()) {
+                        b.queryParam("pullRequest", pullRequest);
+                    }
+                    return b.build();
+                })
+                .retrieve()
+                .body(SonarMeasuresResponse.class);
+    }
+
+    /**
+     * Quality gate status via /api/qualitygates/project_status.
+     * Returns overall status (OK/WARN/ERROR/NONE) plus per-condition breakdown.
+     */
+    public SonarQualityGateStatusResponse getQualityGateStatus(String projectKey, String branch, String pullRequest) {
+        return restClient.get()
+                .uri(uriBuilder -> {
+                    UriBuilder b = uriBuilder.path("/api/qualitygates/project_status")
+                            .queryParam("projectKey", projectKey);
+                    if (branch != null && !branch.isBlank()) {
+                        b.queryParam("branch", branch);
+                    }
+                    if (pullRequest != null && !pullRequest.isBlank()) {
+                        b.queryParam("pullRequest", pullRequest);
+                    }
+                    return b.build();
+                })
+                .retrieve()
+                .body(SonarQualityGateStatusResponse.class);
+    }
+
+    /**
+     * Project branches via /api/project_branches/list. No pagination — Sonar returns all branches at once.
+     */
+    public SonarBranchesResponse listProjectBranches(String projectKey) {
+        return restClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/project_branches/list")
+                        .queryParam("project", projectKey)
+                        .build())
+                .retrieve()
+                .body(SonarBranchesResponse.class);
+    }
+
+    /**
+     * Project pull requests via /api/project_pull_requests/list. Available only when a DevOps integration is configured
+     * (GitHub/GitLab/Bitbucket). On installs without it the endpoint may return 404 — the caller should handle this.
+     */
+    public SonarPullRequestsResponse listProjectPullRequests(String projectKey) {
+        return restClient.get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/api/project_pull_requests/list")
+                        .queryParam("project", projectKey)
+                        .build())
+                .retrieve()
+                .body(SonarPullRequestsResponse.class);
+    }
+
+    /**
      * Source lines via /api/sources/show. Used as a fallback when issue_snippets is unavailable.
      */
-    public List<SonarSourceLine> getSourceLines(String componentKey, int from, int to, String branch) {
+    public List<SonarSourceLine> getSourceLines(String componentKey, int from, int to,
+                                                String branch, String pullRequest) {
         var response = restClient.get()
                 .uri(uriBuilder -> {
                     UriBuilder b = uriBuilder.path("/api/sources/show")
@@ -208,6 +308,9 @@ public class SonarClient {
                             .queryParam("to", to);
                     if (branch != null && !branch.isBlank()) {
                         b.queryParam("branch", branch);
+                    }
+                    if (pullRequest != null && !pullRequest.isBlank()) {
+                        b.queryParam("pullRequest", pullRequest);
                     }
                     return b.build();
                 })

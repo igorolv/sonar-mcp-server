@@ -58,7 +58,7 @@ class IssueServiceTest {
         ArgumentCaptor<SonarClient.IssueSearchParams> captor =
                 ArgumentCaptor.forClass(SonarClient.IssueSearchParams.class);
 
-        service.list("asv-ssj", null, null, null, null, null, null, null, 0, 25);
+        service.list("asv-ssj", null, null, null, null, null, null, null, null, 0, 25);
 
         org.mockito.Mockito.verify(client).searchIssues(captor.capture());
         SonarClient.IssueSearchParams params = captor.getValue();
@@ -74,7 +74,7 @@ class IssueServiceTest {
                 ArgumentCaptor.forClass(SonarClient.IssueSearchParams.class);
 
         service.list("asv-ssj", "src/main/java/ru/foo", null, null,
-                "OPEN", null, null, null, 0, 25);
+                "OPEN", null, null, null, null, 0, 25);
 
         org.mockito.Mockito.verify(client).searchIssues(captor.capture());
         assertThat(captor.getValue().componentKeys()).isEqualTo("asv-ssj:src/main/java/ru/foo");
@@ -82,14 +82,14 @@ class IssueServiceTest {
 
     @Test
     void listRequiresProjectKey() {
-        assertThatThrownBy(() -> service.list(null, null, null, null, null, null, null, null, 0, 25))
+        assertThatThrownBy(() -> service.list(null, null, null, null, null, null, null, null, null, 0, 25))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void findOneThrowsWhenIssueMissing() {
         when(client.searchIssues(any())).thenReturn(emptyResponse());
-        assertThatThrownBy(() -> service.findOne("KEY-MISSING", null))
+        assertThatThrownBy(() -> service.findOne("KEY-MISSING", null, null))
                 .isInstanceOf(IssueNotFoundException.class);
     }
 
@@ -104,7 +104,7 @@ class IssueServiceTest {
                 List.of(), List.of(), List.of()));
         when(client.getIssueChangelog("KEY1")).thenReturn(new SonarChangelogResponse(List.of()));
 
-        var details = service.findOne("KEY1", null);
+        var details = service.findOne("KEY1", null, null);
 
         assertThat(details.issue().key()).isEqualTo("KEY1");
         assertThat(details.changelog()).isEmpty();

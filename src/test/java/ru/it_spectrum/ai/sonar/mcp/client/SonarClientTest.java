@@ -102,6 +102,128 @@ class SonarClientTest {
     }
 
     @Test
+    void showComponentBuildsExpectedUrl() {
+        server.expect(requestToUriTemplate(BASE_URL + "/api/components/show?component=asv-ssj&branch=develop"))
+                .andRespond(withSuccess("""
+                        {
+                          "component": {
+                            "key": "asv-ssj",
+                            "name": "ASV SSJ",
+                            "description": "the project",
+                            "qualifier": "TRK",
+                            "visibility": "private",
+                            "analysisDate": "2026-05-01T12:00:00+0000",
+                            "version": "1.2.3"
+                          }
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        var response = client.showComponent("asv-ssj", "develop", null);
+
+        assertThat(response.component().name()).isEqualTo("ASV SSJ");
+        assertThat(response.component().visibility()).isEqualTo("private");
+        server.verify();
+    }
+
+    @Test
+    void getComponentMeasuresSendsMetricKeys() {
+        server.expect(method(org.springframework.http.HttpMethod.GET))
+                .andExpect(queryParam("component", "asv-ssj"))
+                .andExpect(queryParam("metricKeys", "ncloc,coverage"))
+                .andExpect(queryParam("pullRequest", "42"))
+                .andRespond(withSuccess("""
+                        {
+                          "component": {
+                            "key": "asv-ssj",
+                            "name": "ASV SSJ",
+                            "qualifier": "TRK",
+                            "measures": [
+                              {"metric": "ncloc", "value": "12345"},
+                              {"metric": "coverage", "value": "78.5"}
+                            ]
+                          }
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        var response = client.getComponentMeasures("asv-ssj", "ncloc,coverage", null, "42");
+
+        assertThat(response.component().measures()).hasSize(2);
+        server.verify();
+    }
+
+    @Test
+    void getQualityGateStatusParsesConditions() {
+        server.expect(requestToUriTemplate(BASE_URL + "/api/qualitygates/project_status?projectKey=asv-ssj"))
+                .andRespond(withSuccess("""
+                        {
+                          "projectStatus": {
+                            "status": "ERROR",
+                            "conditions": [
+                              {"status": "ERROR", "metricKey": "new_bugs", "comparator": "GT",
+                                "errorThreshold": "0", "actualValue": "3", "periodIndex": 1},
+                              {"status": "OK", "metricKey": "new_coverage", "comparator": "LT",
+                                "errorThreshold": "80", "actualValue": "85.0", "periodIndex": 1}
+                            ]
+                          }
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        var response = client.getQualityGateStatus("asv-ssj", null, null);
+
+        assertThat(response.projectStatus().status()).isEqualTo("ERROR");
+        assertThat(response.projectStatus().conditions()).hasSize(2);
+        server.verify();
+    }
+
+    @Test
+    void listProjectBranchesParsesResponse() {
+        server.expect(requestToUriTemplate(BASE_URL + "/api/project_branches/list?project=asv-ssj"))
+                .andRespond(withSuccess("""
+                        {
+                          "branches": [
+                            {"name": "main", "isMain": true, "type": "LONG",
+                              "analysisDate": "2026-05-01T12:00:00+0000",
+                              "status": {"qualityGateStatus": "OK", "bugs": 0, "vulnerabilities": 0, "codeSmells": 5}},
+                            {"name": "develop", "isMain": false, "type": "LONG",
+                              "status": {"qualityGateStatus": "ERROR", "bugs": 3, "vulnerabilities": 1, "codeSmells": 17}}
+                          ]
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        var response = client.listProjectBranches("asv-ssj");
+
+        assertThat(response.branches()).hasSize(2);
+        assertThat(response.branches().get(0).isMain()).isTrue();
+        assertThat(response.branches().get(1).status().codeSmells()).isEqualTo(17);
+        server.verify();
+    }
+
+    @Test
+    void listProjectPullRequestsParsesResponse() {
+        server.expect(requestToUriTemplate(BASE_URL + "/api/project_pull_requests/list?project=asv-ssj"))
+                .andRespond(withSuccess("""
+                        {
+                          "pullRequests": [
+                            {"key": "1234", "title": "Add feature", "branch": "feature/x", "base": "main",
+                              "url": "https://gitlab.example.com/p/asv-ssj/-/merge_requests/1234",
+                              "analysisDate": "2026-05-02T10:00:00+0000",
+                              "status": {"qualityGateStatus": "OK", "bugs": 0, "vulnerabilities": 0, "codeSmells": 2}}
+                          ]
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        var response = client.listProjectPullRequests("asv-ssj");
+
+        assertThat(response.pullRequests()).singleElement().satisfies(pr -> {
+            assertThat(pr.key()).isEqualTo("1234");
+            assertThat(pr.branch()).isEqualTo("feature/x");
+            assertThat(pr.base()).isEqualTo("main");
+            assertThat(pr.status().qualityGateStatus()).isEqualTo("OK");
+        });
+        server.verify();
+    }
+
+    @Test
     void getRuleParsesRuleResponse() {
         server.expect(requestToUriTemplate(BASE_URL + "/api/rules/show?key=java:S1234"))
                 .andRespond(withSuccess("""
@@ -147,7 +269,7 @@ class SonarClientTest {
                         }
                         """, MediaType.APPLICATION_JSON));
 
-        var snippets = client.getIssueSnippets("KEY1", null);
+        var snippets = client.getIssueSnippets("KEY1", null, null);
 
         assertThat(snippets).containsKey("asv:src/main/java/Foo.java");
         var snippet = snippets.get("asv:src/main/java/Foo.java");

@@ -12,7 +12,7 @@ There is an official SonarSource MCP server, but it targets SonarQube **10+** (a
 It is also intentionally narrower in scope:
 
 - **Read-only by design.** The server never creates, updates, or deletes anything in SonarQube — no marking issues as false-positive, no editing comments, no admin endpoints. The token's write permissions in SonarQube are irrelevant because the server never calls those endpoints.
-- **Curated tool set.** Instead of mirroring the SonarQube API surface, the server exposes a small, focused set of tools (8 in total) chosen for a single workflow: *let an AI agent read Sonar's findings and fix the code based on them*. Listing issues and hotspots, drilling into a single finding, fetching the rule explanation, and pulling the source-code snippet around the location — and that's it. Anything outside this "diagnose → fix the code locally" loop is deliberately left out to keep the tool list small and the agent's choices unambiguous.
+- **Curated tool set.** Instead of mirroring the SonarQube API surface, the server exposes a small, focused set of tools (11 in total) chosen for a single workflow: *let an AI agent read Sonar's findings and fix the code based on them*. Listing issues and hotspots, drilling into a single finding, fetching the rule explanation, and pulling the source-code snippet around the location — and that's it. Anything outside this "diagnose → fix the code locally" loop is deliberately left out to keep the tool list small and the agent's choices unambiguous.
 
 In short: a focused, read-only bridge from SonarQube 9 to an AI coding agent.
 
@@ -40,22 +40,25 @@ The server does not open any HTTP port and accepts no incoming connections.
 
 ## Tools
 
-The server exports **8 read-only MCP tools**.
+The server exports **11 read-only MCP tools**.
 
 ### Projects
 
 | Tool | Description |
 |---|---|
 | `listProjects` | List of SonarQube projects. Parameters: `query` (name substring), `limit`, `offset`. Returns `key`, `name`, `qualifier`. |
+| `getProject` | Project overview: header info (name, qualifier, visibility, description, version, last analysis date), quality gate status with failed conditions, and curated metrics (ncloc, bugs, vulnerabilities, security hotspots, code smells, coverage, duplicated lines density, technical debt in minutes, alert status). Parameters: `projectKey`, `branch` (opt.), `pullRequest` (opt.). |
+| `listProjectBranches` | List of branches analysed for the project. Each entry: `name`, `isMain`, `type` (LONG/SHORT/BRANCH), `excludedFromPurge`, `analysisDate`, `qualityGateStatus`, plus bugs/vulnerabilities/codeSmells counts. No pagination — Sonar returns all branches at once. |
+| `listProjectPullRequests` | List of PR analyses for the project. Each entry: PR `key` (use as `pullRequest=` elsewhere), `title`, `branch` (head), `base`, `url`, `analysisDate`, `qualityGateStatus`, plus bugs/vulnerabilities/codeSmells counts. Empty list if the Sonar install has no DevOps integration. |
 
 ### Issues
 
 | Tool | Description |
 |---|---|
-| `listIssues` | Flat list of issues for a project. Parameters: `projectKey` (required), `pathPrefix` (path relative to project root, opt.), `severities`, `types`, `statuses`, `rules`, `branch`, `resolved`, `limit`, `offset`. By default returns only open issues (`resolved=false`, statuses OPEN/CONFIRMED/REOPENED). Each item contains the rule, severity, type, status, file path, line, primary textRange, and secondary flows for cross-file rules. |
-| `getIssue` | Details of a single issue by key plus its change history (`changelog`). |
-| `getIssueSnippets` | Source-code snippets around all issue locations (primary plus flows for cross-file rules). For each location: `componentPath`, language, and an array of source lines with SCM info. Useful when the repository isn't available locally or you need to see exactly the file version Sonar analyzed. |
-| `getProjectIssuesSummary` | Aggregated summary of open issues in a project: total plus breakdowns by severity, type, status, rule, tag, and SCM author. Parameters: `projectKey`, `pathPrefix` (opt.), `branch` (opt.). |
+| `listIssues` | Flat list of issues for a project. Parameters: `projectKey` (required), `pathPrefix` (path relative to project root, opt.), `severities`, `types`, `statuses`, `rules`, `branch` / `pullRequest` (mutually exclusive), `resolved`, `limit`, `offset`. By default returns only open issues (`resolved=false`, statuses OPEN/CONFIRMED/REOPENED). Each item contains the rule, severity, type, status, file path, line, primary textRange, and secondary flows for cross-file rules. |
+| `getIssue` | Details of a single issue by key plus its change history (`changelog`). Accepts optional `branch` / `pullRequest`. |
+| `getIssueSnippets` | Source-code snippets around all issue locations (primary plus flows for cross-file rules). For each location: `componentPath`, language, and an array of source lines with SCM info. Useful when the repository isn't available locally or you need to see exactly the file version Sonar analyzed. Accepts optional `branch` / `pullRequest` — important when the issue lives on a non-main ref whose files differ from main. |
+| `getProjectIssuesSummary` | Aggregated summary of open issues in a project: total plus breakdowns by severity, type, status, rule, tag, and SCM author. Parameters: `projectKey`, `pathPrefix` (opt.), `branch` / `pullRequest` (opt., mutually exclusive). |
 
 ### Rules
 
@@ -67,10 +70,19 @@ The server exports **8 read-only MCP tools**.
 
 | Tool | Description |
 |---|---|
-| `listHotspots` | List of Security Hotspots for a project. Hotspots are a separate category from issues, marking spots that require manual security review. By default Sonar returns hotspots in status `TO_REVIEW`. Parameters: `projectKey`, `pathPrefix` (opt.), `status` (opt.), `branch` (opt.), `limit`, `offset`. |
-| `getHotspot` | Security Hotspot details: full rule description (risk, vulnerability, fix recommendations), primary textRange, secondary flows, changelog. |
+| `listHotspots` | List of Security Hotspots for a project. Hotspots are a separate category from issues, marking spots that require manual security review. By default Sonar returns hotspots in status `TO_REVIEW`. Parameters: `projectKey`, `pathPrefix` (opt.), `status` (opt.), `branch` / `pullRequest` (opt., mutually exclusive), `limit`, `offset`. |
+| `getHotspot` | Security Hotspot details: full rule description (risk, vulnerability, fix recommendations), primary textRange, secondary flows, changelog. Hotspot keys are globally unique, so no `branch`/`pullRequest` parameter is needed. |
 
 All tools are **read-only** — no data in SonarQube is modified.
+
+### Working with branches and pull requests
+
+Sonar analyses a *branch* and a *pull request* as two distinct, mutually exclusive scopes. The Sonar web-api accepts either `branch=` or `pullRequest=` on a single request, never both.
+
+- **`branch`** — long-lived branches (main, develop, feature/...). Resolved as: explicit `branch` argument → `SONAR_DEFAULT_BRANCH` → none (Sonar uses the project's main branch).
+- **`pullRequest`** — the Sonar PR key, usually the PR/MR number. Independent from branch analyses; PR analyses often contain the most relevant findings for in-flight work. Pull request keys never fall back to a server-level default — pass them explicitly.
+
+Passing both `branch` and `pullRequest` to the same tool call is an error. Use `listProjectBranches` / `listProjectPullRequests` to discover available refs.
 
 ## Stack
 
@@ -274,10 +286,11 @@ Integration tests require a reachable SonarQube and real data. Unit tests exclud
 │   │   ├── PaginationHelper.java        — offset/limit -> p/ps
 │   │   └── SonarMappers.java            — client.model -> api mapping
 │   └── tools/
-│       ├── ProjectTools.java            — 1 MCP tool
+│       ├── ProjectTools.java            — 4 MCP tools
 │       ├── IssueTools.java              — 4 MCP tools
 │       ├── RuleTools.java               — 1 MCP tool
 │       ├── HotspotTools.java            — 2 MCP tools
+│       ├── RefResolver.java             — branch/pullRequest resolution with default-branch fallback
 │       └── ToolLogger.java
 └── src/main/resources/
     ├── application.yml                  — MCP server configuration (stdio)

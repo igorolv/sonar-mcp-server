@@ -5,9 +5,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Service;
+import ru.it_spectrum.ai.sonar.mcp.api.ProjectBranches;
+import ru.it_spectrum.ai.sonar.mcp.api.ProjectOverview;
 import ru.it_spectrum.ai.sonar.mcp.api.ProjectPage;
+import ru.it_spectrum.ai.sonar.mcp.api.ProjectPullRequests;
+import ru.it_spectrum.ai.sonar.mcp.config.SonarClientProperties;
 import ru.it_spectrum.ai.sonar.mcp.config.SonarMcpProperties;
 import ru.it_spectrum.ai.sonar.mcp.service.ProjectService;
+import ru.it_spectrum.ai.sonar.mcp.tools.RefResolver.Ref;
 
 @Service
 public class ProjectTools {
@@ -16,10 +21,29 @@ public class ProjectTools {
 
     private final ProjectService projectService;
     private final SonarMcpProperties properties;
+    private final SonarClientProperties sonarProperties;
 
-    public ProjectTools(ProjectService projectService, SonarMcpProperties properties) {
+    public ProjectTools(ProjectService projectService, SonarMcpProperties properties,
+                        SonarClientProperties sonarProperties) {
         this.projectService = projectService;
         this.properties = properties;
+        this.sonarProperties = sonarProperties;
+    }
+
+    private String resolveProjectKey(String projectKey) {
+        if (projectKey != null && !projectKey.isBlank()) {
+            return projectKey;
+        }
+        String fallback = sonarProperties.defaultProjectKey();
+        if (fallback != null && !fallback.isBlank()) {
+            return fallback;
+        }
+        throw new IllegalArgumentException(
+                "projectKey is required: no value passed and no default configured (set SONAR_DEFAULT_PROJECT_KEY)");
+    }
+
+    private Ref resolveRef(String branch, String pullRequest) {
+        return RefResolver.resolve(branch, pullRequest, sonarProperties.defaultBranch());
     }
 
     @McpTool(
@@ -40,6 +64,69 @@ public class ProjectTools {
         int actualOffset = offset != null ? offset : properties.pagination().defaultOffset();
         ProjectPage result = projectService.search(query, actualOffset, actualLimit);
         ToolLogger.completed(log, "listProjects", start);
+        return result;
+    }
+
+    @McpTool(
+            description = "Get a SonarQube project overview: header info (name, qualifier, visibility, description, " +
+            "version, last analysis date), quality gate status with failed conditions, and a curated set of metrics " +
+            "(ncloc, bugs, vulnerabilities, security hotspots, code smells, coverage, duplications, technical debt in minutes, " +
+            "alert status). Useful as the first call to understand the shape and health of a project before drilling into issues. " +
+            "Supports branch/pullRequest to scope metrics and gate status to a specific Sonar analysis.",
+            generateOutputSchema = true,
+            annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
+    )
+    public ProjectOverview getProject(
+            @McpToolParam(description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured on the server; otherwise required.", required = false) String projectKey,
+            @McpToolParam(description = "Sonar branch name (optional). Falls back to SONAR_DEFAULT_BRANCH if configured; otherwise Sonar uses the main branch. Mutually exclusive with pullRequest.", required = false) String branch,
+            @McpToolParam(description = "Sonar pull request key. Mutually exclusive with branch.", required = false) String pullRequest
+    ) {
+        String actualProjectKey = resolveProjectKey(projectKey);
+        Ref ref = resolveRef(branch, pullRequest);
+        log.info("Tool call: getProject (projectKey={}, branch={}, pullRequest={})",
+                actualProjectKey, ref.branch(), ref.pullRequest());
+        long start = System.nanoTime();
+        ProjectOverview result = projectService.getOverview(actualProjectKey, ref.branch(), ref.pullRequest());
+        ToolLogger.completed(log, "getProject", start);
+        return result;
+    }
+
+    @McpTool(
+            description = "List Sonar branches analysed for a project. Each branch carries its name, isMain flag, " +
+            "type (LONG/SHORT/BRANCH), excludedFromPurge, last analysis date, quality gate status, and counts of bugs, " +
+            "vulnerabilities and code smells. Use this to discover available branches before scoping other tools with " +
+            "`branch=`. No pagination — Sonar returns all branches at once.",
+            generateOutputSchema = true,
+            annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
+    )
+    public ProjectBranches listProjectBranches(
+            @McpToolParam(description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured on the server; otherwise required.", required = false) String projectKey
+    ) {
+        String actualProjectKey = resolveProjectKey(projectKey);
+        log.info("Tool call: listProjectBranches (projectKey={})", actualProjectKey);
+        long start = System.nanoTime();
+        ProjectBranches result = projectService.listBranches(actualProjectKey);
+        ToolLogger.completed(log, "listProjectBranches", start);
+        return result;
+    }
+
+    @McpTool(
+            description = "List Sonar pull request analyses for a project. Each entry has the PR key (use it as " +
+            "`pullRequest=` in other tools), title, source branch, base branch, URL, last analysis date, quality gate " +
+            "status, and counts of bugs, vulnerabilities and code smells. PR analyses are independent from branch " +
+            "analyses in Sonar — for in-flight PR work this is usually the more relevant data. " +
+            "Returns an empty list if the Sonar installation has no DevOps integration (GitHub/GitLab/Bitbucket) configured.",
+            generateOutputSchema = true,
+            annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
+    )
+    public ProjectPullRequests listProjectPullRequests(
+            @McpToolParam(description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured on the server; otherwise required.", required = false) String projectKey
+    ) {
+        String actualProjectKey = resolveProjectKey(projectKey);
+        log.info("Tool call: listProjectPullRequests (projectKey={})", actualProjectKey);
+        long start = System.nanoTime();
+        ProjectPullRequests result = projectService.listPullRequests(actualProjectKey);
+        ToolLogger.completed(log, "listProjectPullRequests", start);
         return result;
     }
 }

@@ -26,7 +26,8 @@ public class HotspotService {
         this.properties = properties;
     }
 
-    public HotspotPage list(String projectKey, String pathPrefix, String status, String branch,
+    public HotspotPage list(String projectKey, String pathPrefix, String status,
+                            String branch, String pullRequest,
                             int offset, int limit) {
         if (projectKey == null || projectKey.isBlank()) {
             throw new IllegalArgumentException("projectKey is required");
@@ -38,7 +39,7 @@ public class HotspotService {
         String files = pathPrefix == null || pathPrefix.isBlank() ? null : pathPrefix.trim();
 
         var params = new SonarClient.HotspotSearchParams(
-                projectKey, branch, null, status, null, files, null,
+                projectKey, branch, pullRequest, status, null, files, null,
                 page.pageIndex(), page.pageSize());
         SonarHotspotsResponse response = client.searchHotspots(params);
 
