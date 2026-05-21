@@ -10,6 +10,7 @@ import ru.it_spectrum.ai.sonar.mcp.client.model.SonarBranchesResponse;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarChangelogResponse;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarComponentShowResponse;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarComponentsResponse;
+import ru.it_spectrum.ai.sonar.mcp.client.model.SonarComponentsTreeResponse;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarHotspotDetails;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarHotspotsResponse;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarIssueSnippet;
@@ -64,6 +65,38 @@ public class SonarClient {
                 })
                 .retrieve()
                 .body(SonarComponentsResponse.class);
+    }
+
+    /**
+     * Browse/search a project's component tree via /api/components/tree.
+     * Component keys returned by this endpoint are opaque Sonar identifiers and can be passed back to
+     * issues/search as componentKeys.
+     */
+    public SonarComponentsTreeResponse searchComponents(String projectKey, String query, String qualifiers,
+                                                        String branch, String pullRequest,
+                                                        int pageIndex, int pageSize) {
+        return restClient.get()
+                .uri(uriBuilder -> {
+                    UriBuilder b = uriBuilder.path("/api/components/tree")
+                            .queryParam("component", projectKey)
+                            .queryParam("p", pageIndex)
+                            .queryParam("ps", pageSize);
+                    if (query != null && !query.isBlank()) {
+                        b.queryParam("q", query);
+                    }
+                    if (qualifiers != null && !qualifiers.isBlank()) {
+                        b.queryParam("qualifiers", qualifiers);
+                    }
+                    if (branch != null && !branch.isBlank()) {
+                        b.queryParam("branch", branch);
+                    }
+                    if (pullRequest != null && !pullRequest.isBlank()) {
+                        b.queryParam("pullRequest", pullRequest);
+                    }
+                    return b.build();
+                })
+                .retrieve()
+                .body(SonarComponentsTreeResponse.class);
     }
 
     /**

@@ -3,12 +3,10 @@ package ru.it_spectrum.ai.sonar.mcp.api;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 
-@Schema(description = "Aggregated summary of issues in a project or directory, broken down by severity, type, status, rule, tag, and author.")
+@Schema(description = "Aggregated summary of issues in a SonarQube issue search scope, broken down by severity, type, status, rule, tag, and author.")
 public record ProjectIssuesSummary(
         @Schema(description = "Key of the project being summarised.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         String projectKey,
-        @Schema(description = "Friendly path/package filter that was applied; null when summarising the whole selected Sonar scope.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-        String path,
         @Schema(description = "Total number of issues matching the query.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         int total,
         @Schema(description = "Issues grouped by severity (BLOCKER, CRITICAL, MAJOR, MINOR, INFO).", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)

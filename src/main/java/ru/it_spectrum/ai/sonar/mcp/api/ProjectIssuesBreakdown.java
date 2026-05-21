@@ -7,8 +7,6 @@ import java.util.List;
 public record ProjectIssuesBreakdown(
         @Schema(description = "Key of the project being analysed.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         String projectKey,
-        @Schema(description = "Friendly path/package filter that was applied; null when analysing the whole selected Sonar scope.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-        String path,
         @Schema(description = "Total number of issues matching the query.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         int total,
         @Schema(description = "Issues grouped by logical module.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)

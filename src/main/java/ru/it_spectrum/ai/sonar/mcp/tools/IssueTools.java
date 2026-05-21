@@ -55,18 +55,18 @@ public class IssueTools {
             description = "List SonarQube issues for a project. Each item includes rule, severity, type, " +
             "status, message, file path (componentPath), line, primary textRange, and secondary flows " +
             "for cross-file rules. By default only open issues (resolved=false, statuses OPEN/CONFIRMED/REOPENED). " +
-            "Use path for a friendly componentPath/package filter handled by the MCP server. " +
-            "Use componentKeys/directories/files only when you intentionally want raw SonarQube filters. " +
-            "severities, types, statuses, rules accept comma-separated lists.",
+            "Use componentKeys/directories/files to scope the query in Sonar before issues are returned. " +
+            "If the user gives a module, directory, file, or package name instead of an exact component key, " +
+            "call listComponents first and pass returned key values unchanged as componentKeys. " +
+            "Do not pass Java package names directly as componentKeys. severities, types, statuses, rules accept comma-separated lists.",
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public IssuePage listIssues(
             @McpToolParam(description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured on the server; otherwise required. Use listProjects to find it.", required = false) String projectKey,
-            @McpToolParam(description = "Raw Sonar componentKeys filter. Optional; when omitted, the resolved projectKey is used.", required = false) String componentKeys,
-            @McpToolParam(description = "Raw Sonar directories filter. Optional; use only with paths Sonar accepts as directories.", required = false) String directories,
-            @McpToolParam(description = "Raw Sonar files filter. Optional; comma-separated file paths.", required = false) String files,
-            @McpToolParam(description = "Friendly filter matched by MCP against componentPath. Accepts module roots, directories, files, or Java package names.", required = false) String path,
+            @McpToolParam(description = "Comma-separated Sonar component keys. Optional; when omitted, the resolved projectKey is used. Treat keys as opaque strings; use listComponents to discover module/directory/file keys and pass returned key values unchanged. Do not pass Java package names here.", required = false) String componentKeys,
+            @McpToolParam(description = "Comma-separated Sonar directory filters, relative to the project. Use only when you know the exact Sonar directory path; otherwise prefer listComponents then componentKeys.", required = false) String directories,
+            @McpToolParam(description = "Comma-separated Sonar file filters, relative to the project.", required = false) String files,
             @McpToolParam(description = "Severities: comma-separated, any of INFO,MINOR,MAJOR,CRITICAL,BLOCKER (optional)", required = false) String severities,
             @McpToolParam(description = "Types: comma-separated, any of CODE_SMELL,BUG,VULNERABILITY (optional)", required = false) String types,
             @McpToolParam(description = "Statuses: comma-separated, any of OPEN,CONFIRMED,REOPENED,RESOLVED,CLOSED (optional). If both statuses and resolved are omitted, returns only open issues.", required = false) String statuses,
@@ -79,12 +79,12 @@ public class IssueTools {
     ) {
         String actualProjectKey = resolveProjectKey(projectKey);
         Ref ref = resolveRef(branch, pullRequest);
-        log.info("Tool call: listIssues (projectKey={}, componentKeys={}, directories={}, files={}, path={}, severities={}, types={}, statuses={}, rules={}, branch={}, pullRequest={}, resolved={}, limit={}, offset={})",
-                actualProjectKey, componentKeys, directories, files, path, severities, types, statuses, rules, ref.branch(), ref.pullRequest(), resolved, limit, offset);
+        log.info("Tool call: listIssues (projectKey={}, componentKeys={}, directories={}, files={}, severities={}, types={}, statuses={}, rules={}, branch={}, pullRequest={}, resolved={}, limit={}, offset={})",
+                actualProjectKey, componentKeys, directories, files, severities, types, statuses, rules, ref.branch(), ref.pullRequest(), resolved, limit, offset);
         long start = System.nanoTime();
         int actualLimit = limit != null ? limit : properties.pagination().defaultLimit();
         int actualOffset = offset != null ? offset : properties.pagination().defaultOffset();
-        IssuePage result = issueService.list(actualProjectKey, componentKeys, directories, files, path,
+        IssuePage result = issueService.list(actualProjectKey, componentKeys, directories, files,
                 severities, types, statuses,
                 rules, ref.branch(), ref.pullRequest(), resolved, actualOffset, actualLimit);
         ToolLogger.completed(log, "listIssues", start);
@@ -137,18 +137,17 @@ public class IssueTools {
 
     @McpTool(
             description = "Aggregate counts of open Sonar issues in a project, grouped by severity, type, status, rule, tag, and SCM author. " +
-            "Useful as the first call to understand the shape of remaining work. Use path for a friendly componentPath/package filter; " +
-            "use componentKeys/directories/files only for raw SonarQube filters. " +
+            "Useful as the first call to understand the shape of remaining work. Use componentKeys/directories/files to scope the query. " +
+            "If the user gives a module, directory, file, or package name instead of an exact component key, call listComponents first. " +
             "Returns a single total and per-facet [{value, count}] arrays.",
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public ProjectIssuesSummary getProjectIssuesSummary(
             @McpToolParam(description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured on the server; otherwise required.", required = false) String projectKey,
-            @McpToolParam(description = "Raw Sonar componentKeys filter. Optional; when omitted, the resolved projectKey is used.", required = false) String componentKeys,
-            @McpToolParam(description = "Raw Sonar directories filter. Optional; use only with paths Sonar accepts as directories.", required = false) String directories,
-            @McpToolParam(description = "Raw Sonar files filter. Optional; comma-separated file paths.", required = false) String files,
-            @McpToolParam(description = "Friendly filter matched by MCP against componentPath. Accepts module roots, directories, files, or Java package names.", required = false) String path,
+            @McpToolParam(description = "Comma-separated Sonar component keys. Optional; when omitted, the resolved projectKey is used. Use listComponents to discover keys and pass returned key values unchanged.", required = false) String componentKeys,
+            @McpToolParam(description = "Comma-separated Sonar directory filters, relative to the project. Use only when you know the exact Sonar directory path.", required = false) String directories,
+            @McpToolParam(description = "Comma-separated Sonar file filters, relative to the project.", required = false) String files,
             @McpToolParam(description = "Severities: comma-separated, any of INFO,MINOR,MAJOR,CRITICAL,BLOCKER (optional)", required = false) String severities,
             @McpToolParam(description = "Types: comma-separated, any of CODE_SMELL,BUG,VULNERABILITY (optional)", required = false) String types,
             @McpToolParam(description = "Statuses: comma-separated, any of OPEN,CONFIRMED,REOPENED,RESOLVED,CLOSED (optional). If both statuses and resolved are omitted, returns only open issues.", required = false) String statuses,
@@ -159,28 +158,27 @@ public class IssueTools {
     ) {
         String actualProjectKey = resolveProjectKey(projectKey);
         Ref ref = resolveRef(branch, pullRequest);
-        log.info("Tool call: getProjectIssuesSummary (projectKey={}, componentKeys={}, directories={}, files={}, path={}, severities={}, types={}, statuses={}, rules={}, branch={}, pullRequest={}, resolved={})",
-                actualProjectKey, componentKeys, directories, files, path, severities, types, statuses, rules, ref.branch(), ref.pullRequest(), resolved);
+        log.info("Tool call: getProjectIssuesSummary (projectKey={}, componentKeys={}, directories={}, files={}, severities={}, types={}, statuses={}, rules={}, branch={}, pullRequest={}, resolved={})",
+                actualProjectKey, componentKeys, directories, files, severities, types, statuses, rules, ref.branch(), ref.pullRequest(), resolved);
         long start = System.nanoTime();
         ProjectIssuesSummary result = issueService.projectSummary(actualProjectKey, componentKeys, directories, files,
-                path, severities, types, statuses, rules, ref.branch(), ref.pullRequest(), resolved);
+                severities, types, statuses, rules, ref.branch(), ref.pullRequest(), resolved);
         ToolLogger.completed(log, "getProjectIssuesSummary", start);
         return result;
     }
 
     @McpTool(
             description = "Aggregate SonarQube issues by logical module and rule. This is intended for multi-module projects: " +
-            "module is derived from the first componentPath segment. Use path for a friendly componentPath/package filter; " +
-            "use componentKeys/directories/files only for raw SonarQube filters.",
+            "module is derived from the first componentPath segment. Use componentKeys/directories/files to scope the query. " +
+            "If the user gives a module, directory, file, or package name instead of an exact component key, call listComponents first.",
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public ProjectIssuesBreakdown getProjectIssuesBreakdown(
             @McpToolParam(description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured on the server; otherwise required.", required = false) String projectKey,
-            @McpToolParam(description = "Raw Sonar componentKeys filter. Optional; when omitted, the resolved projectKey is used.", required = false) String componentKeys,
-            @McpToolParam(description = "Raw Sonar directories filter. Optional; use only with paths Sonar accepts as directories.", required = false) String directories,
-            @McpToolParam(description = "Raw Sonar files filter. Optional; comma-separated file paths.", required = false) String files,
-            @McpToolParam(description = "Friendly filter matched by MCP against componentPath. Accepts module roots, directories, files, or Java package names.", required = false) String path,
+            @McpToolParam(description = "Comma-separated Sonar component keys. Optional; when omitted, the resolved projectKey is used. Use listComponents to discover keys and pass returned key values unchanged.", required = false) String componentKeys,
+            @McpToolParam(description = "Comma-separated Sonar directory filters, relative to the project. Use only when you know the exact Sonar directory path.", required = false) String directories,
+            @McpToolParam(description = "Comma-separated Sonar file filters, relative to the project.", required = false) String files,
             @McpToolParam(description = "Severities: comma-separated, any of INFO,MINOR,MAJOR,CRITICAL,BLOCKER (optional)", required = false) String severities,
             @McpToolParam(description = "Types: comma-separated, any of CODE_SMELL,BUG,VULNERABILITY (optional)", required = false) String types,
             @McpToolParam(description = "Statuses: comma-separated, any of OPEN,CONFIRMED,REOPENED,RESOLVED,CLOSED (optional). If both statuses and resolved are omitted, returns only open issues.", required = false) String statuses,
@@ -191,11 +189,11 @@ public class IssueTools {
     ) {
         String actualProjectKey = resolveProjectKey(projectKey);
         Ref ref = resolveRef(branch, pullRequest);
-        log.info("Tool call: getProjectIssuesBreakdown (projectKey={}, componentKeys={}, directories={}, files={}, path={}, severities={}, types={}, statuses={}, rules={}, branch={}, pullRequest={}, resolved={})",
-                actualProjectKey, componentKeys, directories, files, path, severities, types, statuses, rules, ref.branch(), ref.pullRequest(), resolved);
+        log.info("Tool call: getProjectIssuesBreakdown (projectKey={}, componentKeys={}, directories={}, files={}, severities={}, types={}, statuses={}, rules={}, branch={}, pullRequest={}, resolved={})",
+                actualProjectKey, componentKeys, directories, files, severities, types, statuses, rules, ref.branch(), ref.pullRequest(), resolved);
         long start = System.nanoTime();
         ProjectIssuesBreakdown result = issueService.projectBreakdown(actualProjectKey, componentKeys, directories,
-                files, path, severities, types, statuses, rules, ref.branch(), ref.pullRequest(), resolved);
+                files, severities, types, statuses, rules, ref.branch(), ref.pullRequest(), resolved);
         ToolLogger.completed(log, "getProjectIssuesBreakdown", start);
         return result;
     }

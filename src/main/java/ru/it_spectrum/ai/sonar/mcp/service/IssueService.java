@@ -36,7 +36,7 @@ public class IssueService {
         this.properties = properties;
     }
 
-    public IssuePage list(String projectKey, String componentKeys, String directories, String files, String path,
+    public IssuePage list(String projectKey, String componentKeys, String directories, String files,
                           String severities, String types,
                           String statuses, String rules, String branch, String pullRequest,
                           Boolean resolved, int offset, int limit) {
@@ -45,12 +45,8 @@ public class IssueService {
         }
         var page = PaginationHelper.toPage(offset, limit, properties.pagination());
 
-        IssueQuery query = IssueQuery.of(projectKey, componentKeys, directories, files, path,
+        IssueQuery query = IssueQuery.of(projectKey, componentKeys, directories, files,
                 severities, types, statuses, rules, branch, pullRequest, resolved);
-        if (query.hasLocalPathFilter()) {
-            List<Issue> items = filterByPath(collectIssues(query), query.path());
-            return pageFromList(items, offset, page.pageSize());
-        }
 
         SonarIssuesResponse response = client.searchIssues(searchParams(query, page.pageIndex(), page.pageSize(), null));
         return mapIssuePage(response, offset, page.pageSize());
@@ -82,29 +78,15 @@ public class IssueService {
     }
 
     public ProjectIssuesSummary projectSummary(String projectKey, String componentKeys,
-                                               String directories, String files, String path,
+                                               String directories, String files,
                                                String severities, String types, String statuses,
                                                String rules, String branch, String pullRequest,
                                                Boolean resolved) {
         if (projectKey == null || projectKey.isBlank()) {
             throw new IllegalArgumentException("projectKey is required");
         }
-        IssueQuery query = IssueQuery.of(projectKey, componentKeys, directories, files, path,
+        IssueQuery query = IssueQuery.of(projectKey, componentKeys, directories, files,
                 severities, types, statuses, rules, branch, pullRequest, resolved);
-        if (query.hasLocalPathFilter()) {
-            List<Issue> issues = filterByPath(collectIssues(query), query.path());
-            return new ProjectIssuesSummary(
-                    projectKey,
-                    path,
-                    issues.size(),
-                    facet(issues, Issue::severity),
-                    facet(issues, Issue::type),
-                    facet(issues, Issue::status),
-                    facet(issues, Issue::rule),
-                    tagFacet(issues),
-                    facet(issues, Issue::author)
-            );
-        }
 
         Set<String> facets = Set.of("severities", "types", "statuses", "rules", "tags", "author");
         var params = searchParams(query, 1, 1, facets);
@@ -114,7 +96,6 @@ public class IssueService {
                         response.paging() == null ? null : response.paging().total());
         return new ProjectIssuesSummary(
                 projectKey,
-                path,
                 total,
                 SonarMappers.toFacet(response == null ? null : response.facets(), "severities"),
                 SonarMappers.toFacet(response == null ? null : response.facets(), "types"),
@@ -126,16 +107,16 @@ public class IssueService {
     }
 
     public ProjectIssuesBreakdown projectBreakdown(String projectKey, String componentKeys,
-                                                   String directories, String files, String path,
+                                                   String directories, String files,
                                                    String severities, String types, String statuses,
                                                    String rules, String branch, String pullRequest,
                                                    Boolean resolved) {
         if (projectKey == null || projectKey.isBlank()) {
             throw new IllegalArgumentException("projectKey is required");
         }
-        IssueQuery query = IssueQuery.of(projectKey, componentKeys, directories, files, path,
+        IssueQuery query = IssueQuery.of(projectKey, componentKeys, directories, files,
                 severities, types, statuses, rules, branch, pullRequest, resolved);
-        List<Issue> issues = filterByPath(collectIssues(query), query.path());
+        List<Issue> issues = collectIssues(query);
         Map<String, List<Issue>> byModule = issues.stream()
                 .collect(Collectors.groupingBy(IssueService::moduleOf));
 
@@ -152,7 +133,6 @@ public class IssueService {
 
         return new ProjectIssuesBreakdown(
                 projectKey,
-                path,
                 issues.size(),
                 modules.stream()
                         .map(m -> new FacetCount(m.module(), m.total()))
@@ -172,13 +152,6 @@ public class IssueService {
         int total = PaginationHelper.totalFromResponse(response.total(),
                 response.paging() == null ? null : response.paging().total());
         return new IssuePage(items, total, offset, limit);
-    }
-
-    private IssuePage pageFromList(List<Issue> items, int offset, int limit) {
-        int safeOffset = Math.max(offset, 0);
-        int from = Math.min(safeOffset, items.size());
-        int to = Math.min(from + limit, items.size());
-        return new IssuePage(items.subList(from, to), items.size(), offset, limit);
     }
 
     private List<Issue> collectIssues(IssueQuery query) {
@@ -220,32 +193,6 @@ public class IssueService {
                 .build();
     }
 
-    private static List<Issue> filterByPath(List<Issue> issues, String path) {
-        String normalized = normalizePath(path);
-        if (normalized == null) {
-            return issues;
-        }
-        String packagePath = looksLikePackage(normalized) ? normalized.replace('.', '/') : null;
-        return issues.stream()
-                .filter(issue -> matchesPath(issue.componentPath(), normalized, packagePath))
-                .toList();
-    }
-
-    private static boolean matchesPath(String componentPath, String path, String packagePath) {
-        String candidate = normalizePath(componentPath);
-        if (candidate == null) {
-            return false;
-        }
-        if (candidate.equals(path) || candidate.startsWith(path + "/")) {
-            return true;
-        }
-        return packagePath != null
-                && (candidate.contains("/" + packagePath + "/")
-                || candidate.endsWith("/" + packagePath)
-                || candidate.equals(packagePath)
-                || candidate.startsWith(packagePath + "/"));
-    }
-
     private static String normalizePath(String value) {
         if (value == null || value.isBlank()) {
             return null;
@@ -260,10 +207,6 @@ public class IssueService {
         return normalized;
     }
 
-    private static boolean looksLikePackage(String value) {
-        return value.indexOf('/') < 0 && value.indexOf('\\') < 0 && value.contains(".") && !value.endsWith(".java");
-    }
-
     private static String moduleOf(Issue issue) {
         String path = normalizePath(issue.componentPath());
         if (path == null) {
@@ -276,18 +219,6 @@ public class IssueService {
     private static List<FacetCount> facet(List<Issue> issues, Function<Issue, String> classifier) {
         return issues.stream()
                 .map(classifier)
-                .filter(v -> v != null && !v.isBlank())
-                .collect(Collectors.groupingBy(Function.identity(), Collectors.summingInt(v -> 1)))
-                .entrySet().stream()
-                .map(e -> new FacetCount(e.getKey(), e.getValue()))
-                .sorted(Comparator.comparingInt(FacetCount::count).reversed()
-                        .thenComparing(FacetCount::value))
-                .toList();
-    }
-
-    private static List<FacetCount> tagFacet(List<Issue> issues) {
-        return issues.stream()
-                .flatMap(issue -> issue.tags() == null ? java.util.stream.Stream.empty() : issue.tags().stream())
                 .filter(v -> v != null && !v.isBlank())
                 .collect(Collectors.groupingBy(Function.identity(), Collectors.summingInt(v -> 1)))
                 .entrySet().stream()
@@ -312,7 +243,6 @@ public class IssueService {
             String componentKeys,
             String directories,
             String files,
-            String path,
             String severities,
             String types,
             String statuses,
@@ -321,7 +251,7 @@ public class IssueService {
             String pullRequest,
             Boolean resolved
     ) {
-        static IssueQuery of(String projectKey, String componentKeys, String directories, String files, String path,
+        static IssueQuery of(String projectKey, String componentKeys, String directories, String files,
                              String severities, String types, String statuses, String rules,
                              String branch, String pullRequest, Boolean resolved) {
             String effectiveComponentKeys = blankToNull(componentKeys);
@@ -339,7 +269,6 @@ public class IssueService {
                     effectiveComponentKeys,
                     blankToNull(directories),
                     blankToNull(files),
-                    blankToNull(path),
                     blankToNull(severities),
                     blankToNull(types),
                     effectiveStatuses,
@@ -347,10 +276,6 @@ public class IssueService {
                     blankToNull(branch),
                     blankToNull(pullRequest),
                     effectiveResolved);
-        }
-
-        boolean hasLocalPathFilter() {
-            return path != null;
         }
 
         private static String blankToNull(String value) {

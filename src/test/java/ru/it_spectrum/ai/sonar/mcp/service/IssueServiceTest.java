@@ -42,7 +42,7 @@ class IssueServiceTest {
         ArgumentCaptor<SonarClient.IssueSearchParams> captor =
                 ArgumentCaptor.forClass(SonarClient.IssueSearchParams.class);
 
-        service.list("asv-ssj", null, null, null, null, null, null, null, null, null, null, null, 0, 25);
+        service.list("asv-ssj", null, null, null, null, null, null, null, null, null, null, 0, 25);
 
         org.mockito.Mockito.verify(client).searchIssues(captor.capture());
         SonarClient.IssueSearchParams params = captor.getValue();
@@ -59,7 +59,7 @@ class IssueServiceTest {
         ArgumentCaptor<SonarClient.IssueSearchParams> captor =
                 ArgumentCaptor.forClass(SonarClient.IssueSearchParams.class);
 
-        service.list("asv-ssj", "asv-ssj:module", "src/main/java/ru/foo", "src/Foo.java", null,
+        service.list("asv-ssj", "asv-ssj:module", "src/main/java/ru/foo", "src/Foo.java",
                 null, null, "OPEN", null, null, null, null, 0, 25);
 
         org.mockito.Mockito.verify(client).searchIssues(captor.capture());
@@ -71,36 +71,8 @@ class IssueServiceTest {
 
     @Test
     void listRequiresProjectKey() {
-        assertThatThrownBy(() -> service.list(null, null, null, null, null, null, null, null, null, null, null, null, 0, 25))
+        assertThatThrownBy(() -> service.list(null, null, null, null, null, null, null, null, null, null, null, 0, 25))
                 .isInstanceOf(IllegalArgumentException.class);
-    }
-
-    @Test
-    void listFiltersFriendlyPathByComponentPath() {
-        when(client.searchIssues(any())).thenReturn(issueResponse(
-                issue("K1", "java:S100", "asv-api:bc-smev/src/main/java/ru/it_spectrum/asv/bc/smev/Foo.java"),
-                issue("K2", "java:S101", "asv-api:bc-loader/src/main/java/ru/it_spectrum/asv/bc/loader/Bar.java")
-        ));
-
-        var result = service.list("asv-api", null, null, null, "bc-smev",
-                null, "CODE_SMELL", null, null, "feature/x", null, null, 0, 25);
-
-        assertThat(result.total()).isEqualTo(1);
-        assertThat(result.items()).singleElement().satisfies(issue ->
-                assertThat(issue.componentPath()).startsWith("bc-smev/"));
-    }
-
-    @Test
-    void listFiltersFriendlyJavaPackageByComponentPath() {
-        when(client.searchIssues(any())).thenReturn(issueResponse(
-                issue("K1", "java:S100", "asv-api:bc-smev/src/main/java/ru/it_spectrum/asv/bc/smev/Foo.java"),
-                issue("K2", "java:S101", "asv-api:bc-smev/src/main/java/ru/it_spectrum/asv/bc/other/Bar.java")
-        ));
-
-        var result = service.list("asv-api", null, null, null, "ru.it_spectrum.asv.bc.smev",
-                null, "CODE_SMELL", null, null, null, null, null, 0, 25);
-
-        assertThat(result.items()).extracting("key").containsExactly("K1");
     }
 
     @Test
@@ -136,7 +108,7 @@ class IssueServiceTest {
         ArgumentCaptor<SonarClient.IssueSearchParams> captor =
                 ArgumentCaptor.forClass(SonarClient.IssueSearchParams.class);
 
-        var summary = service.projectSummary("asv-api", null, null, null, null,
+        var summary = service.projectSummary("asv-api", null, null, null,
                 null, null, null, null, null, null, null);
 
         org.mockito.Mockito.verify(client).searchIssues(captor.capture());
@@ -154,7 +126,7 @@ class IssueServiceTest {
                 issue("K3", "java:S101", "asv-api:bc-loader/src/main/java/Baz.java")
         ));
 
-        var breakdown = service.projectBreakdown("asv-api", null, null, null, null,
+        var breakdown = service.projectBreakdown("asv-api", null, null, null,
                 null, "CODE_SMELL", null, null, null, null, null);
 
         assertThat(breakdown.total()).isEqualTo(3);

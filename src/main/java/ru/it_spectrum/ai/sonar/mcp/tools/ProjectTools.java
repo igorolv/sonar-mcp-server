@@ -6,6 +6,7 @@ import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Service;
 import ru.it_spectrum.ai.sonar.mcp.api.ProjectBranches;
+import ru.it_spectrum.ai.sonar.mcp.api.ProjectComponentPage;
 import ru.it_spectrum.ai.sonar.mcp.api.ProjectOverview;
 import ru.it_spectrum.ai.sonar.mcp.api.ProjectPage;
 import ru.it_spectrum.ai.sonar.mcp.api.ProjectPullRequests;
@@ -64,6 +65,37 @@ public class ProjectTools {
         int actualOffset = offset != null ? offset : properties.pagination().defaultOffset();
         ProjectPage result = projectService.search(query, actualOffset, actualLimit);
         ToolLogger.completed(log, "listProjects", start);
+        return result;
+    }
+
+    @McpTool(
+            description = "Search or browse SonarQube components inside a project using Sonar's component tree. " +
+            "Use this before listIssues when the user gives a module, directory, file, or Java/Kotlin package name " +
+            "but not an exact Sonar componentKey. Returned key values are opaque Sonar componentKeys; pass them " +
+            "unchanged to listIssues componentKeys. For package names, convert dots to slashes and match against " +
+            "returned path suffixes; do not pass package names directly as componentKeys.",
+            generateOutputSchema = true,
+            annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
+    )
+    public ProjectComponentPage listComponents(
+            @McpToolParam(description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured on the server; otherwise required.", required = false) String projectKey,
+            @McpToolParam(description = "Optional substring search applied by Sonar to component names/paths. For package lookup, use the last package segment then match returned path suffixes.", required = false) String query,
+            @McpToolParam(description = "Optional comma-separated Sonar component qualifiers, for example DIR,FIL. Omit when unsure; returned qualifiers explain each component type.", required = false) String qualifiers,
+            @McpToolParam(description = "Sonar branch name (optional). Falls back to SONAR_DEFAULT_BRANCH if configured; otherwise Sonar uses the main branch. Mutually exclusive with pullRequest.", required = false) String branch,
+            @McpToolParam(description = "Sonar pull request key. Mutually exclusive with branch.", required = false) String pullRequest,
+            @McpToolParam(description = "Maximum number of results, uses configured default when omitted", required = false) Integer limit,
+            @McpToolParam(description = "Offset for pagination, default 0", required = false) Integer offset
+    ) {
+        String actualProjectKey = resolveProjectKey(projectKey);
+        Ref ref = resolveRef(branch, pullRequest);
+        log.info("Tool call: listComponents (projectKey={}, query={}, qualifiers={}, branch={}, pullRequest={}, limit={}, offset={})",
+                actualProjectKey, query, qualifiers, ref.branch(), ref.pullRequest(), limit, offset);
+        long start = System.nanoTime();
+        int actualLimit = limit != null ? limit : properties.pagination().defaultLimit();
+        int actualOffset = offset != null ? offset : properties.pagination().defaultOffset();
+        ProjectComponentPage result = projectService.searchComponents(
+                actualProjectKey, query, qualifiers, ref.branch(), ref.pullRequest(), actualOffset, actualLimit);
+        ToolLogger.completed(log, "listComponents", start);
         return result;
     }
 

@@ -104,6 +104,35 @@ class SonarClientTest {
     }
 
     @Test
+    void searchComponentsBuildsExpectedUrl() {
+        server.expect(method(org.springframework.http.HttpMethod.GET))
+                .andExpect(queryParam("component", "asv-ssj"))
+                .andExpect(queryParam("q", "foo"))
+                .andExpect(queryParam("qualifiers", "DIR,FIL"))
+                .andExpect(queryParam("branch", "develop"))
+                .andExpect(queryParam("p", "1"))
+                .andExpect(queryParam("ps", "50"))
+                .andRespond(withSuccess("""
+                        {
+                          "paging": {"pageIndex": 1, "pageSize": 50, "total": 1},
+                          "baseComponent": {"key": "asv-ssj", "name": "ASV SSJ", "qualifier": "TRK"},
+                          "components": [
+                            {"key": "asv-ssj:src/main/java/ru/foo", "name": "foo", "qualifier": "DIR", "path": "src/main/java/ru/foo"}
+                          ]
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        var response = client.searchComponents("asv-ssj", "foo", "DIR,FIL", "develop", null, 1, 50);
+
+        assertThat(response.components()).singleElement().satisfies(c -> {
+            assertThat(c.key()).isEqualTo("asv-ssj:src/main/java/ru/foo");
+            assertThat(c.path()).isEqualTo("src/main/java/ru/foo");
+            assertThat(c.qualifier()).isEqualTo("DIR");
+        });
+        server.verify();
+    }
+
+    @Test
     void showComponentBuildsExpectedUrl() {
         server.expect(requestToUriTemplate(BASE_URL + "/api/components/show?component=asv-ssj&branch=develop"))
                 .andRespond(withSuccess("""

@@ -85,9 +85,10 @@ directly from a tool — go through a service. Never return a `client.model.*` t
 - **Pagination.** External API is `offset`/`limit`. Internally we convert to Sonar's `p`/`ps` via
   `PaginationHelper.toPage`. If `offset` is not a multiple of `limit`, Sonar returns the page
   containing it (we round down).
-- **Path filtering.** Public tools use `path` as a friendly MCP-side filter matched against mapped `componentPath`
-  values. It accepts module roots, directories, exact files, and Java package notation. Raw Sonar filters are exposed
-  separately as `componentKeys`, `directories`, and `files`; do not hide them behind a single friendly path parameter.
+- **Component scoping.** Issue tools do not expose a friendly `path` filter. Use `listComponents` to resolve modules,
+  directories, files, or Java/Kotlin package names to Sonar component `key` values, then pass those opaque keys unchanged
+  as `componentKeys`. Raw Sonar filters are also exposed as `directories` and `files`; do not pass package names directly
+  as `componentKeys`.
 - **Default scope for listIssues.** When both `statuses` and `resolved` are omitted, the service
   defaults to `resolved=false` + `statuses=OPEN,CONFIRMED,REOPENED` (open issues only).
 - **Component path resolution.** `SonarMappers.toIssue` resolves `componentPath` from the

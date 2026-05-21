@@ -11,6 +11,7 @@ import ru.it_spectrum.ai.sonar.mcp.api.IssueFlow;
 import ru.it_spectrum.ai.sonar.mcp.api.IssueLocation;
 import ru.it_spectrum.ai.sonar.mcp.api.Project;
 import ru.it_spectrum.ai.sonar.mcp.api.ProjectBranch;
+import ru.it_spectrum.ai.sonar.mcp.api.ProjectComponent;
 import ru.it_spectrum.ai.sonar.mcp.api.ProjectMetrics;
 import ru.it_spectrum.ai.sonar.mcp.api.ProjectPullRequest;
 import ru.it_spectrum.ai.sonar.mcp.api.QualityGateCondition;
@@ -50,6 +51,17 @@ public final class SonarMappers {
 
     public static Project toProject(SonarComponent c) {
         return new Project(c.key(), c.name(), c.qualifier());
+    }
+
+    public static ProjectComponent toProjectComponent(SonarComponent c) {
+        return new ProjectComponent(
+                c.key(),
+                c.name(),
+                c.longName(),
+                c.qualifier(),
+                c.path(),
+                c.language(),
+                c.project());
     }
 
     /**

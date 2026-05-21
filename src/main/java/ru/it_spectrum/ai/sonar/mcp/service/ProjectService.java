@@ -7,6 +7,8 @@ import org.springframework.web.client.HttpClientErrorException;
 import ru.it_spectrum.ai.sonar.mcp.api.Project;
 import ru.it_spectrum.ai.sonar.mcp.api.ProjectBranch;
 import ru.it_spectrum.ai.sonar.mcp.api.ProjectBranches;
+import ru.it_spectrum.ai.sonar.mcp.api.ProjectComponent;
+import ru.it_spectrum.ai.sonar.mcp.api.ProjectComponentPage;
 import ru.it_spectrum.ai.sonar.mcp.api.ProjectMetrics;
 import ru.it_spectrum.ai.sonar.mcp.api.ProjectOverview;
 import ru.it_spectrum.ai.sonar.mcp.api.ProjectPage;
@@ -18,6 +20,7 @@ import ru.it_spectrum.ai.sonar.mcp.client.model.SonarBranchesResponse;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarComponentDetails;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarComponentShowResponse;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarComponentsResponse;
+import ru.it_spectrum.ai.sonar.mcp.client.model.SonarComponentsTreeResponse;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarMeasuresResponse;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarPullRequestsResponse;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarQualityGateStatusResponse;
@@ -52,6 +55,24 @@ public class ProjectService {
         int total = response == null || response.paging() == null ? 0
                 : PaginationHelper.totalFromResponse(null, response.paging().total());
         return new ProjectPage(items, total, offset, page.pageSize());
+    }
+
+    public ProjectComponentPage searchComponents(String projectKey, String query, String qualifiers,
+                                                 String branch, String pullRequest,
+                                                 int offset, int limit) {
+        if (projectKey == null || projectKey.isBlank()) {
+            throw new IllegalArgumentException("projectKey is required");
+        }
+        var page = PaginationHelper.toPage(offset, limit, properties.pagination());
+        SonarComponentsTreeResponse response = client.searchComponents(
+                projectKey, query, qualifiers, branch, pullRequest, page.pageIndex(), page.pageSize());
+
+        List<ProjectComponent> items = response == null || response.components() == null
+                ? List.of()
+                : response.components().stream().map(SonarMappers::toProjectComponent).toList();
+        int total = response == null || response.paging() == null ? 0
+                : PaginationHelper.totalFromResponse(null, response.paging().total());
+        return new ProjectComponentPage(items, total, offset, page.pageSize());
     }
 
     public ProjectOverview getOverview(String projectKey, String branch, String pullRequest) {
