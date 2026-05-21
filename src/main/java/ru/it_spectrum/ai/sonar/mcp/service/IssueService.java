@@ -39,7 +39,6 @@ public class IssueService {
         }
         var page = PaginationHelper.toPage(offset, limit, properties.pagination());
 
-        String componentKeys = buildComponentKeys(projectKey, pathPrefix);
         String effectiveStatuses = statuses;
         Boolean effectiveResolved = resolved;
         if (effectiveStatuses == null && effectiveResolved == null) {
@@ -47,8 +46,11 @@ public class IssueService {
             effectiveStatuses = DEFAULT_OPEN_STATUSES;
         }
 
+        String directories = pathPrefix == null || pathPrefix.isBlank() ? null : pathPrefix.trim();
+
         var params = SonarClient.IssueSearchParams.builder()
-                .componentKeys(componentKeys)
+                .componentKeys(projectKey)
+                .directories(directories)
                 .severities(severities)
                 .types(types)
                 .statuses(effectiveStatuses)
@@ -94,10 +96,11 @@ public class IssueService {
         if (projectKey == null || projectKey.isBlank()) {
             throw new IllegalArgumentException("projectKey is required");
         }
-        String componentKeys = buildComponentKeys(projectKey, pathPrefix);
+        String directories = pathPrefix == null || pathPrefix.isBlank() ? null : pathPrefix.trim();
         Set<String> facets = Set.of("severities", "types", "statuses", "rules", "tags", "authors");
         var params = SonarClient.IssueSearchParams.builder()
-                .componentKeys(componentKeys)
+                .componentKeys(projectKey)
+                .directories(directories)
                 .branch(branch)
                 .pullRequest(pullRequest)
                 .resolved(false)
@@ -146,20 +149,4 @@ public class IssueService {
                         (a, b) -> a));
     }
 
-    static String buildComponentKeys(String projectKey, String pathPrefix) {
-        if (pathPrefix == null || pathPrefix.isBlank()) {
-            return projectKey;
-        }
-        String trimmed = pathPrefix.trim();
-        while (trimmed.startsWith("/")) {
-            trimmed = trimmed.substring(1);
-        }
-        while (trimmed.endsWith("/")) {
-            trimmed = trimmed.substring(0, trimmed.length() - 1);
-        }
-        if (trimmed.isEmpty()) {
-            return projectKey;
-        }
-        return projectKey + ":" + trimmed;
-    }
 }

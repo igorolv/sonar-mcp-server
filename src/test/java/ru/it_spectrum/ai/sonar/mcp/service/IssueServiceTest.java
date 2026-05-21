@@ -34,25 +34,6 @@ class IssueServiceTest {
     }
 
     @Test
-    void buildComponentKeysWithoutPathPrefixReturnsProjectKey() {
-        assertThat(IssueService.buildComponentKeys("asv-ssj", null)).isEqualTo("asv-ssj");
-        assertThat(IssueService.buildComponentKeys("asv-ssj", "")).isEqualTo("asv-ssj");
-        assertThat(IssueService.buildComponentKeys("asv-ssj", "  ")).isEqualTo("asv-ssj");
-    }
-
-    @Test
-    void buildComponentKeysWithPathPrefixConcatenates() {
-        assertThat(IssueService.buildComponentKeys("asv-ssj", "src/main/java/ru/foo"))
-                .isEqualTo("asv-ssj:src/main/java/ru/foo");
-    }
-
-    @Test
-    void buildComponentKeysTrimsLeadingAndTrailingSlashes() {
-        assertThat(IssueService.buildComponentKeys("asv-ssj", "/src/main/java/ru/foo/"))
-                .isEqualTo("asv-ssj:src/main/java/ru/foo");
-    }
-
-    @Test
     void listDefaultsToOpenIssuesWhenStatusAndResolvedAreOmitted() {
         when(client.searchIssues(any())).thenReturn(emptyResponse());
         ArgumentCaptor<SonarClient.IssueSearchParams> captor =
@@ -63,12 +44,13 @@ class IssueServiceTest {
         org.mockito.Mockito.verify(client).searchIssues(captor.capture());
         SonarClient.IssueSearchParams params = captor.getValue();
         assertThat(params.componentKeys()).isEqualTo("asv-ssj");
+        assertThat(params.directories()).isNull();
         assertThat(params.resolved()).isFalse();
         assertThat(params.statuses()).isEqualTo("OPEN,CONFIRMED,REOPENED");
     }
 
     @Test
-    void listForwardsPathPrefixAsComponentKey() {
+    void listForwardsPathPrefixAsDirectories() {
         when(client.searchIssues(any())).thenReturn(emptyResponse());
         ArgumentCaptor<SonarClient.IssueSearchParams> captor =
                 ArgumentCaptor.forClass(SonarClient.IssueSearchParams.class);
@@ -77,7 +59,9 @@ class IssueServiceTest {
                 "OPEN", null, null, null, null, 0, 25);
 
         org.mockito.Mockito.verify(client).searchIssues(captor.capture());
-        assertThat(captor.getValue().componentKeys()).isEqualTo("asv-ssj:src/main/java/ru/foo");
+        SonarClient.IssueSearchParams params = captor.getValue();
+        assertThat(params.componentKeys()).isEqualTo("asv-ssj");
+        assertThat(params.directories()).isEqualTo("src/main/java/ru/foo");
     }
 
     @Test

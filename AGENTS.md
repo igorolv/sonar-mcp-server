@@ -85,9 +85,8 @@ directly from a tool — go through a service. Never return a `client.model.*` t
 - **Pagination.** External API is `offset`/`limit`. Internally we convert to Sonar's `p`/`ps` via
   `PaginationHelper.toPage`. If `offset` is not a multiple of `limit`, Sonar returns the page
   containing it (we round down).
-- **Path filtering.** `pathPrefix` is concatenated with `projectKey` as `<projectKey>:<pathPrefix>`
-  and passed to Sonar as `componentKeys`. Sonar treats directory keys recursively.
-  See `IssueService.buildComponentKeys`.
+- **Path filtering.** `pathPrefix` is passed to Sonar as the `directories` parameter (path relative to project root).
+  Sonar treats directory paths recursively. `componentKeys` is always set to the bare project key for scoping.
 - **Default scope for listIssues.** When both `statuses` and `resolved` are omitted, the service
   defaults to `resolved=false` + `statuses=OPEN,CONFIRMED,REOPENED` (open issues only).
 - **Component path resolution.** `SonarMappers.toIssue` resolves `componentPath` from the
