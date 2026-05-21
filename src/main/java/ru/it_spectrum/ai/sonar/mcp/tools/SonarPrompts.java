@@ -31,7 +31,14 @@ public class SonarPrompts {
         if (present(branch)) {
             return "Scope every Sonar call by passing branch=`%s`. Do NOT also pass `pullRequest`.".formatted(branch);
         }
-        return "Do not pass `branch` or `pullRequest` — the server will use `SONAR_DEFAULT_BRANCH` if configured, otherwise Sonar's main branch.";
+        return """
+                No `branch` or `pullRequest` argument was provided. Sonar will default to the project's main branch
+                (or `SONAR_DEFAULT_BRANCH` if the server has one configured). BEFORE running the steps below, verify
+                this is the right scope: check the user's current git branch / open PR. If their local repo is on a
+                non-main branch, or they are reviewing a pull request, FIRST call `listProjectBranches` (or
+                `listProjectPullRequests`) on the server-prefixed Sonar MCP tool and pick the matching ref. Then
+                restart this prompt with `branch=` (or `pullRequest=`) set explicitly. Only proceed against main when
+                you have confirmed it is the intended scope.""";
     }
 
     private static String describeComponentTarget(String path) {

@@ -86,6 +86,8 @@ Sonar analyses a *branch* and a *pull request* as two distinct, mutually exclusi
 
 Passing both `branch` and `pullRequest` to the same tool call is an error. Use `listProjectBranches` / `listProjectPullRequests` to discover available refs.
 
+> **Branch scoping is load-bearing.** Each Sonar branch is a separate analysis: open-issue counts on `main` and on a feature branch can differ a lot, because the feature branch may have new fixes (or new code) that have not been merged. If the agent silently omits `branch=`, it reads from `main` (or `SONAR_DEFAULT_BRANCH`) and may miss work already done on a feature branch — or worse, fix the same problem twice. When the user's local git is on `feature/...`, agents should call `listProjectBranches` first, find the matching Sonar branch, and pass it explicitly to every issue / summary / breakdown call.
+
 ## Stack
 
 - Java 25, Spring Boot 4.0.0, Spring AI MCP 2.0.0-M6 (stdio transport)

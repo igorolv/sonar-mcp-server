@@ -73,7 +73,8 @@ public class ProjectTools {
             "Use this before listIssues when the user gives a module, directory, file, or Java/Kotlin package name " +
             "but not an exact Sonar componentKey. Returned key values are opaque Sonar componentKeys; pass them " +
             "unchanged to listIssues componentKeys. For package names, convert dots to slashes and match against " +
-            "returned path suffixes; do not pass package names directly as componentKeys.",
+            "returned path suffixes; do not pass package names directly as componentKeys."
+            + ToolDescriptions.BRANCH_NOTE,
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
@@ -81,8 +82,8 @@ public class ProjectTools {
             @McpToolParam(description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured on the server; otherwise required.", required = false) String projectKey,
             @McpToolParam(description = "Optional substring search applied by Sonar to component names/paths. For package lookup, use the last package segment then match returned path suffixes.", required = false) String query,
             @McpToolParam(description = "Optional comma-separated Sonar component qualifiers, for example DIR,FIL. Omit when unsure; returned qualifiers explain each component type.", required = false) String qualifiers,
-            @McpToolParam(description = "Sonar branch name (optional). Falls back to SONAR_DEFAULT_BRANCH if configured; otherwise Sonar uses the main branch. Mutually exclusive with pullRequest.", required = false) String branch,
-            @McpToolParam(description = "Sonar pull request key. Mutually exclusive with branch.", required = false) String pullRequest,
+            @McpToolParam(description = ToolDescriptions.BRANCH_PARAM, required = false) String branch,
+            @McpToolParam(description = ToolDescriptions.PR_PARAM, required = false) String pullRequest,
             @McpToolParam(description = "Maximum number of results, uses configured default when omitted", required = false) Integer limit,
             @McpToolParam(description = "Offset for pagination, default 0", required = false) Integer offset
     ) {
@@ -104,14 +105,15 @@ public class ProjectTools {
             "version, last analysis date), quality gate status with failed conditions, and a curated set of metrics " +
             "(ncloc, bugs, vulnerabilities, security hotspots, code smells, coverage, duplications, technical debt in minutes, " +
             "alert status). Useful as the first call to understand the shape and health of a project before drilling into issues. " +
-            "Supports branch/pullRequest to scope metrics and gate status to a specific Sonar analysis.",
+            "Supports branch/pullRequest to scope metrics and gate status to a specific Sonar analysis."
+            + ToolDescriptions.BRANCH_NOTE,
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public ProjectOverview getProject(
             @McpToolParam(description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured on the server; otherwise required.", required = false) String projectKey,
-            @McpToolParam(description = "Sonar branch name (optional). Falls back to SONAR_DEFAULT_BRANCH if configured; otherwise Sonar uses the main branch. Mutually exclusive with pullRequest.", required = false) String branch,
-            @McpToolParam(description = "Sonar pull request key. Mutually exclusive with branch.", required = false) String pullRequest
+            @McpToolParam(description = ToolDescriptions.BRANCH_PARAM, required = false) String branch,
+            @McpToolParam(description = ToolDescriptions.PR_PARAM, required = false) String pullRequest
     ) {
         String actualProjectKey = resolveProjectKey(projectKey);
         Ref ref = resolveRef(branch, pullRequest);

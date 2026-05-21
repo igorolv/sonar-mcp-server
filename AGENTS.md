@@ -100,6 +100,17 @@ directly from a tool — go through a service. Never return a `client.model.*` t
   the client. Use `IllegalArgumentException` for caller mistakes (missing required parameter, etc.).
 - **Logging.** Tools log entry args with `log.info("Tool call: <name> (...)")`. Always finish with
   `ToolLogger.completed(...)` or `ToolLogger.failed(...)`. Never write to stdout.
+- **Branch scoping is load-bearing.** Sonar analyses each branch / pull-request independently —
+  data on `main` and on a feature branch can diverge sharply. The calling LLM has no project
+  context, so it tends to omit `branch=` and silently read `main`. Every branch-aware tool's
+  description and every `branch` parameter description must (1) state that the default is `main` /
+  `SONAR_DEFAULT_BRANCH`, (2) tell the agent to call `listProjectBranches` /
+  `listProjectPullRequests` when the user is on a non-main ref, and (3) push for an explicit
+  argument rather than the silent default. Reuse the shared constants in
+  `ToolDescriptions` (`BRANCH_NOTE`, `BRANCH_PARAM`, `PR_PARAM`,
+  `BRANCH_PARAM_FOR_KEY_LOOKUP`) so the message stays consistent across tools. The same applies
+  to `@McpPrompt` instructions — when the branch/PR arg is empty, the prompt must tell the agent
+  to verify the scope, not "do not pass branch".
 
 ---
 

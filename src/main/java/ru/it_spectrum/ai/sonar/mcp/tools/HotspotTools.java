@@ -48,7 +48,8 @@ public class HotspotTools {
     @McpTool(
             description = "List SonarQube Security Hotspots for a project. Hotspots are a separate category " +
             "from issues — they flag code that needs human security review. By default Sonar returns hotspots " +
-            "in TO_REVIEW status. Each item has rule, security category, vulnerability probability, file path, line, and message.",
+            "in TO_REVIEW status. Each item has rule, security category, vulnerability probability, file path, line, and message."
+            + ToolDescriptions.BRANCH_NOTE,
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
@@ -57,8 +58,8 @@ public class HotspotTools {
             @McpToolParam(description = "Raw Sonar files filter. Optional; comma-separated file paths.", required = false) String files,
             @McpToolParam(description = "Friendly filter matched by MCP against componentPath. Accepts module roots, directories, files, or Java package names.", required = false) String path,
             @McpToolParam(description = "Status: TO_REVIEW or REVIEWED (optional, default TO_REVIEW)", required = false) String status,
-            @McpToolParam(description = "Sonar branch name (optional). Falls back to SONAR_DEFAULT_BRANCH if configured. Mutually exclusive with pullRequest.", required = false) String branch,
-            @McpToolParam(description = "Sonar pull request key. Mutually exclusive with branch.", required = false) String pullRequest,
+            @McpToolParam(description = ToolDescriptions.BRANCH_PARAM, required = false) String branch,
+            @McpToolParam(description = ToolDescriptions.PR_PARAM, required = false) String pullRequest,
             @McpToolParam(description = "Maximum number of results, uses configured default when omitted", required = false) Integer limit,
             @McpToolParam(description = "Offset for pagination, default 0", required = false) Integer offset
     ) {
