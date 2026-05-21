@@ -12,6 +12,10 @@ public record IssuePage(
         @Schema(description = "Zero-based offset of this page within the full result set.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         int offset,
         @Schema(description = "Maximum number of items per page.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-        int limit
+        int limit,
+        @Schema(description = "Present only when the call ran against the project's main branch by default and other branches exist; "
+                + "see BranchAdvisory for details.",
+                nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+        BranchAdvisory branchAdvisory
 ) {
 }

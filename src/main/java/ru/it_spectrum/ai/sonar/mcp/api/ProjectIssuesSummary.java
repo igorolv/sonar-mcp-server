@@ -20,6 +20,10 @@ public record ProjectIssuesSummary(
         @Schema(description = "Issues grouped by user-defined tag.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         List<FacetCount> byTag,
         @Schema(description = "Issues grouped by SCM author who introduced them (top authors by issue count).", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-        List<FacetCount> byAuthor
+        List<FacetCount> byAuthor,
+        @Schema(description = "Present only when the call ran against the project's main branch by default and other branches exist; "
+                + "see BranchAdvisory for details.",
+                nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+        BranchAdvisory branchAdvisory
 ) {
 }

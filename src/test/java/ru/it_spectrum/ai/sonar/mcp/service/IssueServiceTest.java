@@ -7,6 +7,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import ru.it_spectrum.ai.sonar.mcp.TestSonarMcpProperties;
+import ru.it_spectrum.ai.sonar.mcp.api.ProjectBranch;
+import ru.it_spectrum.ai.sonar.mcp.api.ProjectBranches;
 import ru.it_spectrum.ai.sonar.mcp.client.SonarClient;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarChangelogResponse;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarComponent;
@@ -29,11 +31,14 @@ class IssueServiceTest {
     @Mock
     private SonarClient client;
 
+    @Mock
+    private ProjectService projectService;
+
     private IssueService service;
 
     @BeforeEach
     void setUp() {
-        service = new IssueService(client, TestSonarMcpProperties.defaults());
+        service = new IssueService(client, TestSonarMcpProperties.defaults(), projectService);
     }
 
     @Test
@@ -138,6 +143,81 @@ class IssueServiceTest {
         assertThat(breakdown.modules().get(0).byRule())
                 .extracting("value", "count")
                 .containsExactly(org.assertj.core.groups.Tuple.tuple("java:S100", 2));
+    }
+
+    @Test
+    void listAttachesBranchAdvisoryWhenBranchOmittedAndNonMainBranchesExist() {
+        when(client.searchIssues(any())).thenReturn(emptyResponse());
+        when(projectService.listBranches("asv-api")).thenReturn(new ProjectBranches("asv-api", List.of(
+                new ProjectBranch("main", true, "LONG", true, "2026-05-21T20:00:00+0300", "OK", 0L, 0L, 0L),
+                new ProjectBranch("feature/3608", false, "SHORT", false, "2026-05-21T23:03:15+0300", "OK", 0L, 0L, 5L),
+                new ProjectBranch("feature/4421", false, "SHORT", false, "2026-05-20T17:12:31+0300", "OK", 0L, 0L, 0L)
+        )));
+
+        var page = service.list("asv-api", null, null, null, null, null, null, null, null, null, null, 0, 25);
+
+        assertThat(page.branchAdvisory()).isNotNull();
+        assertThat(page.branchAdvisory().effectiveBranch()).isEqualTo("main");
+        assertThat(page.branchAdvisory().availableBranches())
+                .extracting(ProjectBranch::name)
+                .containsExactly("feature/3608", "feature/4421");
+        assertThat(page.branchAdvisory().message()).contains("main").contains("2 non-main");
+    }
+
+    @Test
+    void listOmitsBranchAdvisoryWhenBranchPassedExplicitly() {
+        when(client.searchIssues(any())).thenReturn(emptyResponse());
+
+        var page = service.list("asv-api", null, null, null, null, null, null, null,
+                "feature/3608", null, null, 0, 25);
+
+        assertThat(page.branchAdvisory()).isNull();
+        org.mockito.Mockito.verify(projectService, org.mockito.Mockito.never()).listBranches(any());
+    }
+
+    @Test
+    void listOmitsBranchAdvisoryWhenProjectHasOnlyMain() {
+        when(client.searchIssues(any())).thenReturn(emptyResponse());
+        when(projectService.listBranches("asv-api")).thenReturn(new ProjectBranches("asv-api", List.of(
+                new ProjectBranch("main", true, "LONG", true, "2026-05-21T20:00:00+0300", "OK", 0L, 0L, 0L)
+        )));
+
+        var page = service.list("asv-api", null, null, null, null, null, null, null, null, null, null, 0, 25);
+
+        assertThat(page.branchAdvisory()).isNull();
+    }
+
+    @Test
+    void projectSummaryCarriesBranchAdvisoryOnDefaultFallback() {
+        when(client.searchIssues(any())).thenReturn(emptyResponse());
+        when(projectService.listBranches("asv-api")).thenReturn(new ProjectBranches("asv-api", List.of(
+                new ProjectBranch("main", true, "LONG", true, "2026-05-21T20:00:00+0300", "OK", 0L, 0L, 0L),
+                new ProjectBranch("feature/3608", false, "SHORT", false, "2026-05-21T23:03:15+0300", "OK", 0L, 0L, 5L)
+        )));
+
+        var summary = service.projectSummary("asv-api", null, null, null,
+                null, null, null, null, null, null, null);
+
+        assertThat(summary.branchAdvisory()).isNotNull();
+        assertThat(summary.branchAdvisory().availableBranches())
+                .extracting(ProjectBranch::name)
+                .containsExactly("feature/3608");
+    }
+
+    @Test
+    void projectBreakdownCarriesBranchAdvisoryOnDefaultFallback() {
+        when(client.searchIssues(any())).thenReturn(issueResponse(
+                issue("K1", "java:S100", "asv-api:bc-smev/src/main/java/Foo.java")));
+        when(projectService.listBranches("asv-api")).thenReturn(new ProjectBranches("asv-api", List.of(
+                new ProjectBranch("main", true, "LONG", true, "2026-05-21T20:00:00+0300", "OK", 0L, 0L, 0L),
+                new ProjectBranch("feature/3608", false, "SHORT", false, "2026-05-21T23:03:15+0300", "OK", 0L, 0L, 5L)
+        )));
+
+        var breakdown = service.projectBreakdown("asv-api", null, null, null,
+                null, "CODE_SMELL", null, null, null, null, null);
+
+        assertThat(breakdown.branchAdvisory()).isNotNull();
+        assertThat(breakdown.branchAdvisory().effectiveBranch()).isEqualTo("main");
     }
 
     private SonarIssuesResponse emptyResponse() {

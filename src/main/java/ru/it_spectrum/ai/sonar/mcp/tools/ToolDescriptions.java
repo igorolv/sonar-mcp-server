@@ -35,4 +35,10 @@ final class ToolDescriptions {
      * disambiguate when the same issue/file key exists across multiple analysed branches.
      */
     static final String BRANCH_PARAM_FOR_KEY_LOOKUP = "Sonar branch name. Mutually exclusive with `pullRequest`. Falls back to `SONAR_DEFAULT_BRANCH`; otherwise Sonar uses the project's main branch. The same Sonar issue/file key can exist on several branches with different content — pass `branch` to make sure the lookup hits the analysis you actually want. If the user is working on a non-main git branch, call `listProjectBranches` first and pass the matching branch here.";
+
+    /**
+     * Note appended to tools (`listIssues`, `getProjectIssuesSummary`, `getProjectIssuesBreakdown`) whose responses
+     * carry a server-side `branchAdvisory` when the call ran against main by default. Tells the agent to react to it.
+     */
+    static final String BRANCH_ADVISORY_NOTE = " RESPONSE WATCH: when both `branch` and `pullRequest` are omitted AND the project has other branches analysed in Sonar, the response carries a `branchAdvisory` field with the main branch name and the list of available non-main branches sorted by analysisDate. If you see it, stop and reconsider scope — pick the branch matching the user's local git and retry with `branch=` set instead of acting on main-branch data.";
 }

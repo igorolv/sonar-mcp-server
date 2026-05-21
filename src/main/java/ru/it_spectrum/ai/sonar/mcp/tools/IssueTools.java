@@ -59,7 +59,8 @@ public class IssueTools {
             "If the user gives a module, directory, file, or package name instead of an exact component key, " +
             "call listComponents first and pass returned key values unchanged as componentKeys. " +
             "Do not pass Java package names directly as componentKeys. severities, types, statuses, rules accept comma-separated lists."
-            + ToolDescriptions.BRANCH_NOTE,
+            + ToolDescriptions.BRANCH_NOTE
+            + ToolDescriptions.BRANCH_ADVISORY_NOTE,
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
@@ -142,7 +143,8 @@ public class IssueTools {
             "Useful as the first call to understand the shape of remaining work. Use componentKeys/directories/files to scope the query. " +
             "If the user gives a module, directory, file, or package name instead of an exact component key, call listComponents first. " +
             "Returns a single total and per-facet [{value, count}] arrays."
-            + ToolDescriptions.BRANCH_NOTE,
+            + ToolDescriptions.BRANCH_NOTE
+            + ToolDescriptions.BRANCH_ADVISORY_NOTE,
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
@@ -174,7 +176,8 @@ public class IssueTools {
             description = "Aggregate SonarQube issues by logical module and rule. This is intended for multi-module projects: " +
             "module is derived from the first componentPath segment. Use componentKeys/directories/files to scope the query. " +
             "If the user gives a module, directory, file, or package name instead of an exact component key, call listComponents first."
-            + ToolDescriptions.BRANCH_NOTE,
+            + ToolDescriptions.BRANCH_NOTE
+            + ToolDescriptions.BRANCH_ADVISORY_NOTE,
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )

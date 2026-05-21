@@ -1,12 +1,17 @@
 package ru.it_spectrum.ai.sonar.mcp.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import ru.it_spectrum.ai.sonar.mcp.api.BranchAdvisory;
 import ru.it_spectrum.ai.sonar.mcp.api.ChangelogEntry;
 import ru.it_spectrum.ai.sonar.mcp.api.FacetCount;
 import ru.it_spectrum.ai.sonar.mcp.api.Issue;
 import ru.it_spectrum.ai.sonar.mcp.api.IssueDetails;
 import ru.it_spectrum.ai.sonar.mcp.api.IssuePage;
 import ru.it_spectrum.ai.sonar.mcp.api.ModuleIssuesSummary;
+import ru.it_spectrum.ai.sonar.mcp.api.ProjectBranch;
+import ru.it_spectrum.ai.sonar.mcp.api.ProjectBranches;
 import ru.it_spectrum.ai.sonar.mcp.api.ProjectIssuesBreakdown;
 import ru.it_spectrum.ai.sonar.mcp.api.ProjectIssuesSummary;
 import ru.it_spectrum.ai.sonar.mcp.client.SonarClient;
@@ -26,14 +31,18 @@ import java.util.stream.Collectors;
 @Service
 public class IssueService {
 
+    private static final Logger log = LoggerFactory.getLogger(IssueService.class);
+
     private static final String DEFAULT_OPEN_STATUSES = "OPEN,CONFIRMED,REOPENED";
 
     private final SonarClient client;
     private final SonarMcpProperties properties;
+    private final ProjectService projectService;
 
-    public IssueService(SonarClient client, SonarMcpProperties properties) {
+    public IssueService(SonarClient client, SonarMcpProperties properties, ProjectService projectService) {
         this.client = client;
         this.properties = properties;
+        this.projectService = projectService;
     }
 
     public IssuePage list(String projectKey, String componentKeys, String directories, String files,
@@ -49,7 +58,12 @@ public class IssueService {
                 severities, types, statuses, rules, branch, pullRequest, resolved);
 
         SonarIssuesResponse response = client.searchIssues(searchParams(query, page.pageIndex(), page.pageSize(), null));
-        return mapIssuePage(response, offset, page.pageSize());
+        IssuePage page0 = mapIssuePage(response, offset, page.pageSize());
+        BranchAdvisory advisory = advisoryFor(projectKey, branch, pullRequest);
+        if (advisory == null) {
+            return page0;
+        }
+        return new IssuePage(page0.items(), page0.total(), page0.offset(), page0.limit(), advisory);
     }
 
     public IssueDetails findOne(String issueKey, String branch, String pullRequest) {
@@ -102,7 +116,8 @@ public class IssueService {
                 SonarMappers.toFacet(response == null ? null : response.facets(), "statuses"),
                 SonarMappers.toFacet(response == null ? null : response.facets(), "rules"),
                 SonarMappers.toFacet(response == null ? null : response.facets(), "tags"),
-                SonarMappers.toFacet(response == null ? null : response.facets(), "author")
+                SonarMappers.toFacet(response == null ? null : response.facets(), "author"),
+                advisoryFor(projectKey, branch, pullRequest)
         );
     }
 
@@ -138,12 +153,56 @@ public class IssueService {
                         .map(m -> new FacetCount(m.module(), m.total()))
                         .toList(),
                 facet(issues, Issue::rule),
-                modules);
+                modules,
+                advisoryFor(projectKey, branch, pullRequest));
+    }
+
+    /**
+     * Builds a {@link BranchAdvisory} when the caller passed neither `branch` nor `pullRequest`
+     * (so the underlying Sonar call ran against the project's main branch) AND the project has
+     * non-main branches that Sonar has actually analysed. Returns {@code null} in every other case
+     * so Jackson (configured with NON_NULL) leaves the field out of the response entirely.
+     *
+     * <p>Costs one extra Sonar call ({@code project_branches/list}) — only on the default-fallback
+     * path, never when scope is explicit.
+     */
+    private BranchAdvisory advisoryFor(String projectKey, String branch, String pullRequest) {
+        if (branch != null || pullRequest != null) {
+            return null;
+        }
+        ProjectBranches branches;
+        try {
+            branches = projectService.listBranches(projectKey);
+        } catch (RuntimeException e) {
+            log.warn("Failed to fetch branches for advisory on {}: {}", projectKey, e.toString());
+            return null;
+        }
+        if (branches == null || branches.branches() == null || branches.branches().isEmpty()) {
+            return null;
+        }
+        String mainName = branches.branches().stream()
+                .filter(ProjectBranch::isMain)
+                .map(ProjectBranch::name)
+                .findFirst()
+                .orElse("main");
+        List<ProjectBranch> nonMain = branches.branches().stream()
+                .filter(b -> !b.isMain())
+                .sorted(Comparator.comparing(ProjectBranch::analysisDate,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .toList();
+        if (nonMain.isEmpty()) {
+            return null;
+        }
+        String message = ("No `branch` or `pullRequest` was passed; Sonar returned data for the project's main branch `%s`. "
+                + "This project has %d non-main branch(es) analysed — if the user's local git is on one of them, retry the call "
+                + "with `branch=<name>` set. The list below is sorted by most recent analysisDate first.")
+                .formatted(mainName, nonMain.size());
+        return new BranchAdvisory(message, mainName, nonMain);
     }
 
     private IssuePage mapIssuePage(SonarIssuesResponse response, int offset, int limit) {
         if (response == null || response.issues() == null) {
-            return new IssuePage(List.of(), 0, offset, limit);
+            return new IssuePage(List.of(), 0, offset, limit, null);
         }
         Map<String, SonarComponent> componentsByKey = indexComponents(response.components());
         List<Issue> items = response.issues().stream()
@@ -151,7 +210,7 @@ public class IssueService {
                 .toList();
         int total = PaginationHelper.totalFromResponse(response.total(),
                 response.paging() == null ? null : response.paging().total());
-        return new IssuePage(items, total, offset, limit);
+        return new IssuePage(items, total, offset, limit, null);
     }
 
     private List<Issue> collectIssues(IssueQuery query) {
