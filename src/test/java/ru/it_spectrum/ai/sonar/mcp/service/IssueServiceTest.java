@@ -9,6 +9,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import ru.it_spectrum.ai.sonar.mcp.TestSonarMcpProperties;
 import ru.it_spectrum.ai.sonar.mcp.client.SonarClient;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarChangelogResponse;
+import ru.it_spectrum.ai.sonar.mcp.client.model.SonarFacet;
+import ru.it_spectrum.ai.sonar.mcp.client.model.SonarFacetValue;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarIssue;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarIssuesResponse;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarPaging;
@@ -92,6 +94,24 @@ class IssueServiceTest {
 
         assertThat(details.issue().key()).isEqualTo("KEY1");
         assertThat(details.changelog()).isEmpty();
+    }
+
+    @Test
+    void projectSummaryUsesSonarAuthorFacet() {
+        when(client.searchIssues(any())).thenReturn(new SonarIssuesResponse(
+                3, 1, 1, new SonarPaging(1, 1, 3), List.of(),
+                List.of(), List.of(),
+                List.of(new SonarFacet("author", List.of(new SonarFacetValue("alice", 3))))));
+        ArgumentCaptor<SonarClient.IssueSearchParams> captor =
+                ArgumentCaptor.forClass(SonarClient.IssueSearchParams.class);
+
+        var summary = service.projectSummary("asv-api", null, null, null);
+
+        org.mockito.Mockito.verify(client).searchIssues(captor.capture());
+        assertThat(captor.getValue().facets()).contains("author").doesNotContain("authors");
+        assertThat(summary.byAuthor())
+                .extracting("value", "count")
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("alice", 3));
     }
 
     private SonarIssuesResponse emptyResponse() {

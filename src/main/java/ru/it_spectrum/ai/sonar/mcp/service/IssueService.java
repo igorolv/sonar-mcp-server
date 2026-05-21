@@ -97,7 +97,7 @@ public class IssueService {
             throw new IllegalArgumentException("projectKey is required");
         }
         String directories = pathPrefix == null || pathPrefix.isBlank() ? null : pathPrefix.trim();
-        Set<String> facets = Set.of("severities", "types", "statuses", "rules", "tags", "authors");
+        Set<String> facets = Set.of("severities", "types", "statuses", "rules", "tags", "author");
         var params = SonarClient.IssueSearchParams.builder()
                 .componentKeys(projectKey)
                 .directories(directories)
@@ -122,7 +122,7 @@ public class IssueService {
                 SonarMappers.toFacet(response == null ? null : response.facets(), "statuses"),
                 SonarMappers.toFacet(response == null ? null : response.facets(), "rules"),
                 SonarMappers.toFacet(response == null ? null : response.facets(), "tags"),
-                SonarMappers.toFacet(response == null ? null : response.facets(), "authors")
+                SonarMappers.toFacet(response == null ? null : response.facets(), "author")
         );
     }
 
