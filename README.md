@@ -55,10 +55,11 @@ The server exports **11 read-only MCP tools**.
 
 | Tool | Description |
 |---|---|
-| `listIssues` | Flat list of issues for a project. Parameters: `projectKey` (required), `pathPrefix` (path relative to project root, opt.), `severities`, `types`, `statuses`, `rules`, `branch` / `pullRequest` (mutually exclusive), `resolved`, `limit`, `offset`. By default returns only open issues (`resolved=false`, statuses OPEN/CONFIRMED/REOPENED). Each item contains the rule, severity, type, status, file path, line, primary textRange, and secondary flows for cross-file rules. |
+| `listIssues` | Flat list of issues for a project. Parameters: `projectKey` (required unless defaulted), `path` (friendly componentPath/package filter, opt.), raw Sonar filters `componentKeys`, `directories`, `files` (opt.), `severities`, `types`, `statuses`, `rules`, `branch` / `pullRequest` (mutually exclusive), `resolved`, `limit`, `offset`. By default returns only open issues (`resolved=false`, statuses OPEN/CONFIRMED/REOPENED). Each item contains the rule, severity, type, status, file path, line, primary textRange, and secondary flows for cross-file rules. |
 | `getIssue` | Details of a single issue by key plus its change history (`changelog`). Accepts optional `branch` / `pullRequest`. |
 | `getIssueSnippets` | Source-code snippets around all issue locations (primary plus flows for cross-file rules). For each location: `componentPath`, language, and an array of source lines with SCM info. Useful when the repository isn't available locally or you need to see exactly the file version Sonar analyzed. Accepts optional `branch` / `pullRequest` — important when the issue lives on a non-main ref whose files differ from main. |
-| `getProjectIssuesSummary` | Aggregated summary of open issues in a project: total plus breakdowns by severity, type, status, rule, tag, and SCM author. Parameters: `projectKey`, `pathPrefix` (opt.), `branch` / `pullRequest` (opt., mutually exclusive). |
+| `getProjectIssuesSummary` | Aggregated summary of open issues in a project: total plus breakdowns by severity, type, status, rule, tag, and SCM author. Parameters mirror `listIssues` except pagination. |
+| `getProjectIssuesBreakdown` | Multi-module aggregation of issues by logical module and rule. Module is derived from the first `componentPath` segment. Parameters mirror `getProjectIssuesSummary`. |
 
 ### Rules
 
@@ -70,7 +71,7 @@ The server exports **11 read-only MCP tools**.
 
 | Tool | Description |
 |---|---|
-| `listHotspots` | List of Security Hotspots for a project. Hotspots are a separate category from issues, marking spots that require manual security review. By default Sonar returns hotspots in status `TO_REVIEW`. Parameters: `projectKey`, `pathPrefix` (opt.), `status` (opt.), `branch` / `pullRequest` (opt., mutually exclusive), `limit`, `offset`. |
+| `listHotspots` | List of Security Hotspots for a project. Hotspots are a separate category from issues, marking spots that require manual security review. By default Sonar returns hotspots in status `TO_REVIEW`. Parameters: `projectKey`, `path` (friendly componentPath/package filter, opt.), raw Sonar `files` filter (opt.), `status` (opt.), `branch` / `pullRequest` (opt., mutually exclusive), `limit`, `offset`. |
 | `getHotspot` | Security Hotspot details: full rule description (risk, vulnerability, fix recommendations), primary textRange, secondary flows, changelog. Hotspot keys are globally unique, so no `branch`/`pullRequest` parameter is needed. |
 
 All tools are **read-only** — no data in SonarQube is modified.
@@ -250,7 +251,8 @@ Integration tests require a reachable SonarQube and real data. Unit tests exclud
 
 - HTTP timeouts and retry policy aren't separately configurable yet.
 - The Sonar API uses page-based pagination (`p`/`ps`); the tools accept `offset`/`limit`, and an offset that is not a multiple of `limit` is rounded down to the nearest page boundary. Sonar also caps `ps` at 500.
-- `pathPrefix` is passed to Sonar as `componentKeys=<projectKey>:<pathPrefix>`. This works both for a specific file and for a directory (recursively). Java notation (`com.example.foo`) is intentionally not supported — pass the path as it lives in the repository (e.g. `src/main/java/com/example/foo`).
+- `path` is an MCP-side friendly filter matched against returned `componentPath` values. It accepts module roots (`bc-smev`), directories, exact files, and Java package notation (`com.example.foo`). Because it is filtered locally, the server may page through all matching Sonar issues before applying `offset`/`limit`.
+- `componentKeys`, `directories`, and `files` are raw SonarQube filters. Use them only when you intentionally need Sonar's native component/directory/file semantics.
 - The `author` field on `Issue` is the SCM author of the line where the issue occurred (populated by Sonar when an SCM provider is configured). Sonar doesn't return separate `scmAuthor`/`scmDate` fields in `issues/search`; for line-level SCM use `getIssueSnippets`.
 
 ## Project layout
@@ -266,7 +268,8 @@ Integration tests require a reachable SonarQube and real data. Unit tests exclud
 │   │   ├── SourceSnippet.java, SnippetLine.java, IssueSnippets.java
 │   │   ├── ChangelogEntry.java, ChangelogDiff.java
 │   │   ├── TextRange.java, FacetCount.java
-│   │   └── ProjectIssuesSummary.java
+│   │   ├── ProjectIssuesSummary.java, ProjectIssuesBreakdown.java
+│   │   └── ModuleIssuesSummary.java
 │   ├── client/
 │   │   ├── SonarClient.java              — SonarQube web-api wrapper
 │   │   └── model/                        — raw DTOs of the SonarQube web-api, not exposed directly via MCP
@@ -287,7 +290,7 @@ Integration tests require a reachable SonarQube and real data. Unit tests exclud
 │   │   └── SonarMappers.java            — client.model -> api mapping
 │   └── tools/
 │       ├── ProjectTools.java            — 4 MCP tools
-│       ├── IssueTools.java              — 4 MCP tools
+│       ├── IssueTools.java              — 5 MCP tools
 │       ├── RuleTools.java               — 1 MCP tool
 │       ├── HotspotTools.java            — 2 MCP tools
 │       ├── RefResolver.java             — branch/pullRequest resolution with default-branch fallback
@@ -302,4 +305,4 @@ Integration tests require a reachable SonarQube and real data. Unit tests exclud
 - **"Gradle requires JVM 17 or later"** — set `JAVA_HOME` to a JDK 25+.
 - **Connection refused / 401** — check URL and token. Test: `curl -u "$SONAR_TOKEN:" "$SONAR_URL/api/components/search?qualifiers=TRK&p=1&ps=1"`.
 - **403 Forbidden** — the token user has no rights on the project or on the web-api. Check the role in SonarQube.
-- **Empty pathPrefix doesn't work / returns 0** — the path must match the way files live in the repository. In a multi-module Gradle/Maven layout the module name comes first (e.g. `apps/my-module/backend/...`).
+- **Path unexpectedly returns 0** — call `listIssues` without `path` and inspect a few `componentPath` values, then pass a module root, directory, exact file, or Java package that matches those paths. For raw Sonar filtering issues, prefer `path` unless you explicitly need `componentKeys`, `directories`, or `files`.

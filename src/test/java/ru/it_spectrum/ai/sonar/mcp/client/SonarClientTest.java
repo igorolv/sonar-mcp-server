@@ -50,6 +50,7 @@ class SonarClientTest {
     void searchIssuesPassesFiltersAndAdditionalFields() {
         server.expect(method(org.springframework.http.HttpMethod.GET))
                 .andExpect(queryParam("componentKeys", "asv-ssj:src/main/java/ru/foo"))
+                .andExpect(queryParam("files", "src/main/java/ru/foo/Bar.java"))
                 .andExpect(queryParam("severities", "BLOCKER,CRITICAL"))
                 .andExpect(queryParam("resolved", "false"))
                 .andExpect(queryParam("additionalFields", "_all"))
@@ -85,6 +86,7 @@ class SonarClientTest {
 
         var params = SonarClient.IssueSearchParams.builder()
                 .componentKeys("asv-ssj:src/main/java/ru/foo")
+                .files("src/main/java/ru/foo/Bar.java")
                 .severities("BLOCKER,CRITICAL")
                 .resolved(false)
                 .pageIndex(1)

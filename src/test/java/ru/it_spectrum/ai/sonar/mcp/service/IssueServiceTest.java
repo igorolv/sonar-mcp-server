@@ -9,6 +9,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import ru.it_spectrum.ai.sonar.mcp.TestSonarMcpProperties;
 import ru.it_spectrum.ai.sonar.mcp.client.SonarClient;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarChangelogResponse;
+import ru.it_spectrum.ai.sonar.mcp.client.model.SonarComponent;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarFacet;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarFacetValue;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarIssue;
@@ -41,35 +42,65 @@ class IssueServiceTest {
         ArgumentCaptor<SonarClient.IssueSearchParams> captor =
                 ArgumentCaptor.forClass(SonarClient.IssueSearchParams.class);
 
-        service.list("asv-ssj", null, null, null, null, null, null, null, null, 0, 25);
+        service.list("asv-ssj", null, null, null, null, null, null, null, null, null, null, null, 0, 25);
 
         org.mockito.Mockito.verify(client).searchIssues(captor.capture());
         SonarClient.IssueSearchParams params = captor.getValue();
         assertThat(params.componentKeys()).isEqualTo("asv-ssj");
         assertThat(params.directories()).isNull();
+        assertThat(params.files()).isNull();
         assertThat(params.resolved()).isFalse();
         assertThat(params.statuses()).isEqualTo("OPEN,CONFIRMED,REOPENED");
     }
 
     @Test
-    void listForwardsPathPrefixAsDirectories() {
+    void listForwardsRawSonarFilters() {
         when(client.searchIssues(any())).thenReturn(emptyResponse());
         ArgumentCaptor<SonarClient.IssueSearchParams> captor =
                 ArgumentCaptor.forClass(SonarClient.IssueSearchParams.class);
 
-        service.list("asv-ssj", "src/main/java/ru/foo", null, null,
-                "OPEN", null, null, null, null, 0, 25);
+        service.list("asv-ssj", "asv-ssj:module", "src/main/java/ru/foo", "src/Foo.java", null,
+                null, null, "OPEN", null, null, null, null, 0, 25);
 
         org.mockito.Mockito.verify(client).searchIssues(captor.capture());
         SonarClient.IssueSearchParams params = captor.getValue();
-        assertThat(params.componentKeys()).isEqualTo("asv-ssj");
+        assertThat(params.componentKeys()).isEqualTo("asv-ssj:module");
         assertThat(params.directories()).isEqualTo("src/main/java/ru/foo");
+        assertThat(params.files()).isEqualTo("src/Foo.java");
     }
 
     @Test
     void listRequiresProjectKey() {
-        assertThatThrownBy(() -> service.list(null, null, null, null, null, null, null, null, null, 0, 25))
+        assertThatThrownBy(() -> service.list(null, null, null, null, null, null, null, null, null, null, null, null, 0, 25))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void listFiltersFriendlyPathByComponentPath() {
+        when(client.searchIssues(any())).thenReturn(issueResponse(
+                issue("K1", "java:S100", "asv-api:bc-smev/src/main/java/ru/it_spectrum/asv/bc/smev/Foo.java"),
+                issue("K2", "java:S101", "asv-api:bc-loader/src/main/java/ru/it_spectrum/asv/bc/loader/Bar.java")
+        ));
+
+        var result = service.list("asv-api", null, null, null, "bc-smev",
+                null, "CODE_SMELL", null, null, "feature/x", null, null, 0, 25);
+
+        assertThat(result.total()).isEqualTo(1);
+        assertThat(result.items()).singleElement().satisfies(issue ->
+                assertThat(issue.componentPath()).startsWith("bc-smev/"));
+    }
+
+    @Test
+    void listFiltersFriendlyJavaPackageByComponentPath() {
+        when(client.searchIssues(any())).thenReturn(issueResponse(
+                issue("K1", "java:S100", "asv-api:bc-smev/src/main/java/ru/it_spectrum/asv/bc/smev/Foo.java"),
+                issue("K2", "java:S101", "asv-api:bc-smev/src/main/java/ru/it_spectrum/asv/bc/other/Bar.java")
+        ));
+
+        var result = service.list("asv-api", null, null, null, "ru.it_spectrum.asv.bc.smev",
+                null, "CODE_SMELL", null, null, null, null, null, 0, 25);
+
+        assertThat(result.items()).extracting("key").containsExactly("K1");
     }
 
     @Test
@@ -105,7 +136,8 @@ class IssueServiceTest {
         ArgumentCaptor<SonarClient.IssueSearchParams> captor =
                 ArgumentCaptor.forClass(SonarClient.IssueSearchParams.class);
 
-        var summary = service.projectSummary("asv-api", null, null, null);
+        var summary = service.projectSummary("asv-api", null, null, null, null,
+                null, null, null, null, null, null, null);
 
         org.mockito.Mockito.verify(client).searchIssues(captor.capture());
         assertThat(captor.getValue().facets()).contains("author").doesNotContain("authors");
@@ -114,8 +146,46 @@ class IssueServiceTest {
                 .containsExactly(org.assertj.core.groups.Tuple.tuple("alice", 3));
     }
 
+    @Test
+    void projectBreakdownGroupsByModuleAndRule() {
+        when(client.searchIssues(any())).thenReturn(issueResponse(
+                issue("K1", "java:S100", "asv-api:bc-smev/src/main/java/Foo.java"),
+                issue("K2", "java:S100", "asv-api:bc-smev/src/main/java/Bar.java"),
+                issue("K3", "java:S101", "asv-api:bc-loader/src/main/java/Baz.java")
+        ));
+
+        var breakdown = service.projectBreakdown("asv-api", null, null, null, null,
+                null, "CODE_SMELL", null, null, null, null, null);
+
+        assertThat(breakdown.total()).isEqualTo(3);
+        assertThat(breakdown.byModule())
+                .extracting("value", "count")
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("bc-smev", 2),
+                        org.assertj.core.groups.Tuple.tuple("bc-loader", 1));
+        assertThat(breakdown.modules().get(0).byRule())
+                .extracting("value", "count")
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("java:S100", 2));
+    }
+
     private SonarIssuesResponse emptyResponse() {
         return new SonarIssuesResponse(0, 1, 25,
                 new SonarPaging(1, 25, 0), List.of(), List.of(), List.of(), List.of());
+    }
+
+    private SonarIssuesResponse issueResponse(SonarIssue... issues) {
+        List<SonarComponent> components = java.util.Arrays.stream(issues)
+                .map(issue -> new SonarComponent(issue.component(), null, null, "FIL",
+                        SonarMappers.componentPath(issue.component()), "java", "asv-api", true))
+                .toList();
+        return new SonarIssuesResponse(issues.length, 1, 500,
+                new SonarPaging(1, 500, issues.length), List.of(issues), components, List.of(), List.of());
+    }
+
+    private SonarIssue issue(String key, String rule, String component) {
+        return new SonarIssue(key, rule, "MAJOR",
+                component, "asv-api", 1, null, null, List.of(),
+                "OPEN", null, "msg", null, null, null, null,
+                List.of("tag"), null, null, null, "CODE_SMELL", "MAIN");
     }
 }

@@ -54,7 +54,8 @@ public class HotspotTools {
     )
     public HotspotPage listHotspots(
             @McpToolParam(description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured on the server; otherwise required.", required = false) String projectKey,
-            @McpToolParam(description = "File path or comma-separated paths to scope the search (optional)", required = false) String pathPrefix,
+            @McpToolParam(description = "Raw Sonar files filter. Optional; comma-separated file paths.", required = false) String files,
+            @McpToolParam(description = "Friendly filter matched by MCP against componentPath. Accepts module roots, directories, files, or Java package names.", required = false) String path,
             @McpToolParam(description = "Status: TO_REVIEW or REVIEWED (optional, default TO_REVIEW)", required = false) String status,
             @McpToolParam(description = "Sonar branch name (optional). Falls back to SONAR_DEFAULT_BRANCH if configured. Mutually exclusive with pullRequest.", required = false) String branch,
             @McpToolParam(description = "Sonar pull request key. Mutually exclusive with branch.", required = false) String pullRequest,
@@ -63,12 +64,12 @@ public class HotspotTools {
     ) {
         String actualProjectKey = resolveProjectKey(projectKey);
         Ref ref = resolveRef(branch, pullRequest);
-        log.info("Tool call: listHotspots (projectKey={}, pathPrefix={}, status={}, branch={}, pullRequest={}, limit={}, offset={})",
-                actualProjectKey, pathPrefix, status, ref.branch(), ref.pullRequest(), limit, offset);
+        log.info("Tool call: listHotspots (projectKey={}, files={}, path={}, status={}, branch={}, pullRequest={}, limit={}, offset={})",
+                actualProjectKey, files, path, status, ref.branch(), ref.pullRequest(), limit, offset);
         long start = System.nanoTime();
         int actualLimit = limit != null ? limit : properties.pagination().defaultLimit();
         int actualOffset = offset != null ? offset : properties.pagination().defaultOffset();
-        HotspotPage result = hotspotService.list(actualProjectKey, pathPrefix, status, ref.branch(), ref.pullRequest(),
+        HotspotPage result = hotspotService.list(actualProjectKey, files, path, status, ref.branch(), ref.pullRequest(),
                 actualOffset, actualLimit);
         ToolLogger.completed(log, "listHotspots", start);
         return result;

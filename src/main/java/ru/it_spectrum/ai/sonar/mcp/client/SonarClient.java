@@ -73,6 +73,7 @@ public class SonarClient {
      * <ul>
      *   <li>componentKeys — comma-separated project/file/directory keys (e.g. "projectKey" or "projectKey:src/main/java/ru/foo").
      *       When a directory key is supplied, Sonar returns issues for all files under that directory.</li>
+     *   <li>directories, files — Sonar path filters, comma-separated</li>
      *   <li>severities, types, statuses, rules, languages — comma-separated</li>
      *   <li>resolved — null = include both; true/false to filter</li>
      *   <li>branch, pullRequest — Sonar branch/PR feature</li>
@@ -91,6 +92,7 @@ public class SonarClient {
         putIfPresent(query, "branch", params.branch());
         putIfPresent(query, "pullRequest", params.pullRequest());
         putIfPresent(query, "directories", params.directories());
+        putIfPresent(query, "files", params.files());
         if (params.resolved() != null) {
             query.put("resolved", String.valueOf(params.resolved()));
         }
@@ -358,6 +360,7 @@ public class SonarClient {
             String branch,
             String pullRequest,
             String directories,
+            String files,
             Boolean resolved,
             Set<String> facets,
             String sort,
@@ -380,6 +383,7 @@ public class SonarClient {
             private String branch;
             private String pullRequest;
             private String directories;
+            private String files;
             private Boolean resolved;
             private Set<String> facets;
             private String sort;
@@ -397,6 +401,7 @@ public class SonarClient {
             public Builder branch(String v) { this.branch = v; return this; }
             public Builder pullRequest(String v) { this.pullRequest = v; return this; }
             public Builder directories(String v) { this.directories = v; return this; }
+            public Builder files(String v) { this.files = v; return this; }
             public Builder resolved(Boolean v) { this.resolved = v; return this; }
             public Builder facets(Set<String> v) { this.facets = v; return this; }
             public Builder sort(String v) { this.sort = v; return this; }
@@ -406,7 +411,7 @@ public class SonarClient {
 
             public IssueSearchParams build() {
                 return new IssueSearchParams(issues, componentKeys, severities, types, statuses, rules,
-                        languages, branch, pullRequest, directories, resolved, facets, sort, asc,
+                        languages, branch, pullRequest, directories, files, resolved, facets, sort, asc,
                         pageIndex, pageSize);
             }
         }

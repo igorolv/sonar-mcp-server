@@ -25,7 +25,7 @@ class SonarPromptsTest {
         var args = m.getParameters();
         assertThat(args[0].getAnnotation(McpArg.class).name()).isEqualTo("projectKey");
         assertThat(args[0].getAnnotation(McpArg.class).required()).isFalse();
-        assertThat(args[1].getAnnotation(McpArg.class).name()).isEqualTo("pathPrefix");
+        assertThat(args[1].getAnnotation(McpArg.class).name()).isEqualTo("path");
         assertThat(args[1].getAnnotation(McpArg.class).required()).isFalse();
         assertThat(args[2].getAnnotation(McpArg.class).name()).isEqualTo("branch");
         assertThat(args[3].getAnnotation(McpArg.class).name()).isEqualTo("pullRequest");
@@ -39,7 +39,7 @@ class SonarPromptsTest {
         assertThat(annotation.name()).isEqualTo("fix-path");
 
         var pathArg = m.getParameters()[0].getAnnotation(McpArg.class);
-        assertThat(pathArg.name()).isEqualTo("pathPrefix");
+        assertThat(pathArg.name()).isEqualTo("path");
         assertThat(pathArg.required()).isTrue();
     }
 
@@ -131,10 +131,10 @@ class SonarPromptsTest {
     }
 
     @Test
-    void fixFileExplainsThatFilePathIsPassedAsPathPrefix() {
+    void fixFileExplainsThatFilePathIsPassedAsPath() {
         String text = prompts.fixFile("src/x/Y.java", null, null, null);
-        // Crucial detail: the tool param is pathPrefix; an exact file path works.
-        assertThat(text).contains("pathPrefix");
+        // Crucial detail: the tool param is path; an exact file path works.
+        assertThat(text).contains("path");
         assertThat(text).contains("exact file path");
     }
 

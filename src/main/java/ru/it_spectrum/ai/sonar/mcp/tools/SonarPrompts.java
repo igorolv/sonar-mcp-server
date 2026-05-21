@@ -34,18 +34,17 @@ public class SonarPrompts {
         return "Do not pass `branch` or `pullRequest` — the server will use `SONAR_DEFAULT_BRANCH` if configured, otherwise Sonar's main branch.";
     }
 
-    private static String describePathPrefix(String pathPrefix) {
-        if (!present(pathPrefix)) {
-            return "Do NOT pass `pathPrefix` — analyse the whole project.";
+    private static String describePath(String path) {
+        if (!present(path)) {
+            return "Do NOT pass `path` — analyse the whole project.";
         }
-        return "Pass pathPrefix=`%s` to scope the search.".formatted(pathPrefix);
+        return "Pass path=`%s` to scope the search.".formatted(path);
     }
 
-    private static final String PATH_PREFIX_NOTE = """
-            Note on `pathPrefix`: it is relative to the Sonar project root, which may differ from your local repo layout
-            (e.g. a monorepo Sonar root could be `apps/ssj/backend/bc/`). If `listIssues` / `listHotspots` returns nothing for a path
-            you know contains code, the prefix is likely wrong — call `getProject` to inspect project metadata, or `listIssues` with
-            no pathPrefix and look at a few `componentPath` values to learn the real root.""";
+    private static final String PATH_NOTE = """
+            Note on `path`: it is a friendly MCP-side filter matched against `componentPath`. It accepts module roots,
+            directories, exact files, and Java package names such as `com.example.foo`. If you intentionally need raw
+            SonarQube filtering semantics, use the explicit `componentKeys`, `directories`, or `files` tool parameters instead.""";
 
     private static final String RULE_REUSE_NOTE = """
             Rule lookup discipline: after listing issues, collect the SET of UNIQUE rule keys. Call `getRule` ONCE per unique key,
@@ -60,12 +59,12 @@ public class SonarPrompts {
     )
     public String analyzePath(
             @McpArg(name = "projectKey", description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured.", required = false) String projectKey,
-            @McpArg(name = "pathPrefix", description = "Path relative to the Sonar project root (e.g. 'src/main/java/ru/foo'). Optional — omit to analyse the whole project.", required = false) String pathPrefix,
+            @McpArg(name = "path", description = "Path relative to the Sonar project root (e.g. 'src/main/java/ru/foo'). Optional — omit to analyse the whole project.", required = false) String path,
             @McpArg(name = "branch", description = "Sonar branch name (optional). Mutually exclusive with pullRequest.", required = false) String branch,
             @McpArg(name = "pullRequest", description = "Sonar pull request key (optional). Mutually exclusive with branch.", required = false) String pullRequest
     ) {
-        log.info("Prompt requested: analyze-path (projectKey={}, pathPrefix={}, branch={}, pullRequest={})",
-                projectKey, pathPrefix, branch, pullRequest);
+        log.info("Prompt requested: analyze-path (projectKey={}, path={}, branch={}, pullRequest={})",
+                projectKey, path, branch, pullRequest);
         return """
                 You are sizing up SonarQube findings %s. Produce a compact situational report — no fixes yet, just shape and scale.
 
@@ -121,12 +120,12 @@ public class SonarPrompts {
                 - Do not invent rule names. If the rule facet doesn't carry a human name, use just the key.
                 - Counts must come from the tool responses, not be guessed.
                 """.formatted(
-                        scopeLabel(pathPrefix, branch, pullRequest),
+                        scopeLabel(path, branch, pullRequest),
                         describeProject(projectKey),
-                        describePathPrefix(pathPrefix),
+                        describePath(path),
                         describeScope(branch, pullRequest),
-                        PATH_PREFIX_NOTE,
-                        present(pathPrefix) ? " | **Path:** `%s`".formatted(pathPrefix) : "",
+                        PATH_NOTE,
+                        present(path) ? " | **Path:** `%s`".formatted(path) : "",
                         present(branch) ? " | **Branch:** `%s`".formatted(branch) : "",
                         present(pullRequest) ? " | **PR:** `%s`".formatted(pullRequest) : "");
     }
@@ -139,14 +138,14 @@ public class SonarPrompts {
                     "Use when you have a directory to clean up."
     )
     public String fixPath(
-            @McpArg(name = "pathPrefix", description = "Path to fix, relative to the Sonar project root (e.g. 'src/main/java/ru/foo').", required = true) String pathPrefix,
+            @McpArg(name = "path", description = "Path to fix, relative to the Sonar project root (e.g. 'src/main/java/ru/foo').", required = true) String path,
             @McpArg(name = "projectKey", description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured.", required = false) String projectKey,
             @McpArg(name = "severities", description = "Comma-separated severities to focus on (INFO,MINOR,MAJOR,CRITICAL,BLOCKER). Optional — omit for all severities.", required = false) String severities,
             @McpArg(name = "branch", description = "Sonar branch name (optional). Mutually exclusive with pullRequest.", required = false) String branch,
             @McpArg(name = "pullRequest", description = "Sonar pull request key (optional). Mutually exclusive with branch.", required = false) String pullRequest
     ) {
-        log.info("Prompt requested: fix-path (pathPrefix={}, projectKey={}, severities={}, branch={}, pullRequest={})",
-                pathPrefix, projectKey, severities, branch, pullRequest);
+        log.info("Prompt requested: fix-path (path={}, projectKey={}, severities={}, branch={}, pullRequest={})",
+                path, projectKey, severities, branch, pullRequest);
         return """
                 You are building a fix plan for SonarQube findings under `%s`. Output is an actionable plan grouped by file —
                 each line is something a developer (or you, acting as one) can execute.
@@ -156,7 +155,7 @@ public class SonarPrompts {
 
                 Parameters resolved for this run:
                 - %s
-                - Path: pathPrefix=`%s`
+                - Path: path=`%s`
                 - %s
                 - Severities filter: %s
 
@@ -166,7 +165,7 @@ public class SonarPrompts {
 
                 Steps (perform in this order):
 
-                1. Page through `listIssues` with pathPrefix=`%s`%s and the scope parameters above until you have ALL open issues.
+                1. Page through `listIssues` with path=`%s`%s and the scope parameters above until you have ALL open issues.
                    Use limit=100 per page. Stop when a page returns fewer than `limit` items. Do NOT paginate past 10 pages — if
                    there are >1000 issues in this path, stop and tell the user the path is too broad; recommend narrowing.
 
@@ -176,7 +175,7 @@ public class SonarPrompts {
                    These responses give you `howToFix`, `rootCause`, and severity context that drive the recommendations below.
 
                 4. Use `getIssueSnippets` SPARINGLY — only call it for an issue if EITHER:
-                   - the issue's `flows`/secondary locations point at files OUTSIDE the current `pathPrefix` (cross-file impact you must flag), OR
+                   - the issue's `flows`/secondary locations point at files OUTSIDE the current `path` (cross-file impact you must flag), OR
                    - you cannot read the file locally for some reason.
                    Otherwise rely on reading the file directly with your filesystem tools — it's faster and gives full context.
 
@@ -202,7 +201,7 @@ public class SonarPrompts {
                 - **L<line>** — ...
 
                 ### Cross-file impact
-                <For each issue whose secondary flows pointed outside this pathPrefix (from step 4): name the issue, the file it
+                <For each issue whose secondary flows pointed outside this path (from step 4): name the issue, the file it
                 lives in, and the OTHER files its fix will touch. If none, write "None — all fixes are contained to this path.">
 
                 ### Hotspots (review separately)
@@ -215,17 +214,17 @@ public class SonarPrompts {
                 - Do not invent line numbers, paths, or rule keys — only use what came back from the tools.
                 - If pagination stopped at 1000 issues, say so prominently at the top of the report.
                 """.formatted(
-                        pathPrefix,
+                        path,
                         describeProject(projectKey),
-                        pathPrefix,
+                        path,
                         describeScope(branch, pullRequest),
                         present(severities) ? "`" + severities + "`" : "(none — all severities)",
-                        PATH_PREFIX_NOTE,
+                        PATH_NOTE,
                         RULE_REUSE_NOTE,
-                        pathPrefix,
+                        path,
                         present(severities) ? ", severities=`" + severities + "`" : "",
-                        pathPrefix,
-                        present(pathPrefix) ? "" : "",
+                        path,
+                        present(path) ? "" : "",
                         present(branch) ? " | **Branch:** `%s`".formatted(branch) : "",
                         present(pullRequest) ? " | **PR:** `%s`".formatted(pullRequest) : "");
     }
@@ -254,7 +253,7 @@ public class SonarPrompts {
 
                 Parameters resolved for this run:
                 - %s
-                - File: pass filePath as `pathPrefix=%s` to `listIssues` / `listHotspots`. Sonar treats an exact file path the same way as a directory prefix — it will return only issues in that file.
+                - File: pass the exact file path as `path=%s` to `listIssues` / `listHotspots`. The MCP server matches it against `componentPath` and returns only findings in that file.
                 - %s
 
                 %s
@@ -263,10 +262,10 @@ public class SonarPrompts {
 
                 Steps (perform in this order):
 
-                1. Call `listIssues` with pathPrefix=`%s` and the scope above. limit=100, single page is normally enough for one file.
+                1. Call `listIssues` with path=`%s` and the scope above. limit=100, single page is normally enough for one file.
                    If a second page is needed, paginate.
 
-                2. Call `listHotspots` with the same pathPrefix and scope (single page).
+                2. Call `listHotspots` with the same path and scope (single page).
 
                 3. From the issues, collect the SET of unique rule keys. Call `getRule` once per unique key.
 
@@ -312,7 +311,7 @@ public class SonarPrompts {
                         describeProject(projectKey),
                         filePath,
                         describeScope(branch, pullRequest),
-                        PATH_PREFIX_NOTE,
+                        PATH_NOTE,
                         RULE_REUSE_NOTE,
                         filePath,
                         filePath,
@@ -499,13 +498,13 @@ public class SonarPrompts {
                         present(projectKey) ? "(project `" + projectKey + "`)" : "");
     }
 
-    private static String scopeLabel(String pathPrefix, String branch, String pullRequest) {
+    private static String scopeLabel(String path, String branch, String pullRequest) {
         if (present(pullRequest)) {
-            return "in PR `" + pullRequest + "`" + (present(pathPrefix) ? " under `" + pathPrefix + "`" : "");
+            return "in PR `" + pullRequest + "`" + (present(path) ? " under `" + path + "`" : "");
         }
         String b = present(branch) ? " on branch `" + branch + "`" : "";
-        if (present(pathPrefix)) {
-            return "under `" + pathPrefix + "`" + b;
+        if (present(path)) {
+            return "under `" + path + "`" + b;
         }
         return "across the whole project" + b;
     }

@@ -7,8 +7,8 @@ import java.util.List;
 public record ProjectIssuesSummary(
         @Schema(description = "Key of the project being summarised.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         String projectKey,
-        @Schema(description = "Directory path filter that was applied; null when summarising the whole project.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-        String pathPrefix,
+        @Schema(description = "Friendly path/package filter that was applied; null when summarising the whole selected Sonar scope.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+        String path,
         @Schema(description = "Total number of issues matching the query.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         int total,
         @Schema(description = "Issues grouped by severity (BLOCKER, CRITICAL, MAJOR, MINOR, INFO).", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
