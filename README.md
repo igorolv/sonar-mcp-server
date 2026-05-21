@@ -72,7 +72,7 @@ The server exports **12 read-only MCP tools**.
 
 | Tool | Description |
 |---|---|
-| `listHotspots` | List of Security Hotspots for a project. Hotspots are a separate category from issues, marking spots that require manual security review. By default Sonar returns hotspots in status `TO_REVIEW`. Parameters: `projectKey`, `path` (friendly componentPath/package filter, opt.), raw Sonar `files` filter (opt.), `status` (opt.), `branch` / `pullRequest` (opt., mutually exclusive), `limit`, `offset`. |
+| `listHotspots` | List of Security Hotspots for a project. Hotspots are a separate category from issues, marking spots that require manual security review. By default Sonar returns hotspots in status `TO_REVIEW`. Parameters: `projectKey`, raw Sonar `files` filter (opt.), `status` (opt.), `branch` / `pullRequest` (opt., mutually exclusive), `limit`, `offset`. |
 | `getHotspot` | Security Hotspot details: full rule description (risk, vulnerability, fix recommendations), primary textRange, secondary flows, changelog. Hotspot keys are globally unique, so no `branch`/`pullRequest` parameter is needed. |
 
 All tools are **read-only** — no data in SonarQube is modified.
@@ -256,8 +256,7 @@ Integration tests require a reachable SonarQube and real data. Unit tests exclud
 
 - HTTP timeouts and retry policy aren't separately configurable yet.
 - The Sonar API uses page-based pagination (`p`/`ps`); the tools accept `offset`/`limit`, and an offset that is not a multiple of `limit` is rounded down to the nearest page boundary. Sonar also caps `ps` at 500.
-- `path` is an MCP-side friendly filter matched against returned `componentPath` values. It accepts module roots (`bc-smev`), directories, exact files, and Java package notation (`com.example.foo`). Because it is filtered locally, the server may page through all matching Sonar issues before applying `offset`/`limit`.
-- `componentKeys`, `directories`, and `files` are raw SonarQube filters. Use them only when you intentionally need Sonar's native component/directory/file semantics.
+- `componentKeys`, `directories`, and `files` are raw SonarQube filters. Use them only when you intentionally need Sonar's native component/directory/file semantics. There is no MCP-side friendly `path` filter for issues or hotspots.
 - The `author` field on `Issue` is the SCM author of the line where the issue occurred (populated by Sonar when an SCM provider is configured). Sonar doesn't return separate `scmAuthor`/`scmDate` fields in `issues/search`; for line-level SCM use `getIssueSnippets`.
 
 ## Project layout
