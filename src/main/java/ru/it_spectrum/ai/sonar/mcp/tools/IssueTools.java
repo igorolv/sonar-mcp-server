@@ -12,7 +12,6 @@ import ru.it_spectrum.ai.sonar.mcp.api.ProjectIssuesBreakdown;
 import ru.it_spectrum.ai.sonar.mcp.api.ProjectIssuesSummary;
 import ru.it_spectrum.ai.sonar.mcp.config.SonarClientProperties;
 import ru.it_spectrum.ai.sonar.mcp.config.SonarMcpProperties;
-import ru.it_spectrum.ai.sonar.mcp.service.IssueNotFoundException;
 import ru.it_spectrum.ai.sonar.mcp.service.IssueService;
 import ru.it_spectrum.ai.sonar.mcp.service.SnippetService;
 import ru.it_spectrum.ai.sonar.mcp.tools.RefResolver.Ref;
@@ -87,14 +86,12 @@ public class IssueTools {
         Ref ref = resolveRef(branch, pullRequest);
         log.info("Tool call: listIssues (projectKey={}, componentPathPrefix={}, severities={}, types={}, statuses={}, rules={}, branch={}, pullRequest={}, resolved={}, limit={}, offset={})",
                 actualProjectKey, componentPathPrefix, severities, types, statuses, rules, ref.branch(), ref.pullRequest(), resolved, limit, offset);
-        long start = System.nanoTime();
         int actualLimit = limit != null ? limit : properties.pagination().defaultLimit();
         int actualOffset = offset != null ? offset : properties.pagination().defaultOffset();
-        IssuePage result = issueService.list(actualProjectKey, componentPathPrefix,
-                severities, types, statuses,
-                rules, ref.branch(), ref.pullRequest(), resolved, actualOffset, actualLimit);
-        ToolLogger.completed(log, "listIssues", start);
-        return result;
+        return ToolLogger.run(log, "listIssues", () ->
+                issueService.list(actualProjectKey, componentPathPrefix,
+                        severities, types, statuses,
+                        rules, ref.branch(), ref.pullRequest(), resolved, actualOffset, actualLimit));
     }
 
     @McpTool(
@@ -110,15 +107,8 @@ public class IssueTools {
     ) {
         Ref ref = resolveRef(branch, pullRequest);
         log.info("Tool call: getIssue (issueKey={}, branch={}, pullRequest={})", issueKey, ref.branch(), ref.pullRequest());
-        long start = System.nanoTime();
-        try {
-            IssueDetails result = issueService.findOne(issueKey, ref.branch(), ref.pullRequest());
-            ToolLogger.completed(log, "getIssue", start);
-            return result;
-        } catch (IssueNotFoundException e) {
-            ToolLogger.failed(log, "getIssue", start, e.getMessage());
-            throw e;
-        }
+        return ToolLogger.run(log, "getIssue", () ->
+                issueService.findOne(issueKey, ref.branch(), ref.pullRequest()));
     }
 
     @McpTool(
@@ -136,10 +126,8 @@ public class IssueTools {
     ) {
         Ref ref = resolveRef(branch, pullRequest);
         log.info("Tool call: getIssueSnippets (issueKey={}, branch={}, pullRequest={})", issueKey, ref.branch(), ref.pullRequest());
-        long start = System.nanoTime();
-        IssueSnippets result = snippetService.getForIssue(issueKey, ref.branch(), ref.pullRequest());
-        ToolLogger.completed(log, "getIssueSnippets", start);
-        return result;
+        return ToolLogger.run(log, "getIssueSnippets", () ->
+                snippetService.getForIssue(issueKey, ref.branch(), ref.pullRequest()));
     }
 
     @McpTool(
@@ -167,11 +155,9 @@ public class IssueTools {
         Ref ref = resolveRef(branch, pullRequest);
         log.info("Tool call: getProjectIssuesSummary (projectKey={}, componentPathPrefix={}, severities={}, types={}, statuses={}, rules={}, branch={}, pullRequest={}, resolved={})",
                 actualProjectKey, componentPathPrefix, severities, types, statuses, rules, ref.branch(), ref.pullRequest(), resolved);
-        long start = System.nanoTime();
-        ProjectIssuesSummary result = issueService.projectSummary(actualProjectKey, componentPathPrefix,
-                severities, types, statuses, rules, ref.branch(), ref.pullRequest(), resolved);
-        ToolLogger.completed(log, "getProjectIssuesSummary", start);
-        return result;
+        return ToolLogger.run(log, "getProjectIssuesSummary", () ->
+                issueService.projectSummary(actualProjectKey, componentPathPrefix,
+                        severities, types, statuses, rules, ref.branch(), ref.pullRequest(), resolved));
     }
 
     @McpTool(
@@ -198,10 +184,8 @@ public class IssueTools {
         Ref ref = resolveRef(branch, pullRequest);
         log.info("Tool call: getProjectIssuesBreakdown (projectKey={}, componentPathPrefix={}, severities={}, types={}, statuses={}, rules={}, branch={}, pullRequest={}, resolved={})",
                 actualProjectKey, componentPathPrefix, severities, types, statuses, rules, ref.branch(), ref.pullRequest(), resolved);
-        long start = System.nanoTime();
-        ProjectIssuesBreakdown result = issueService.projectBreakdown(actualProjectKey, componentPathPrefix,
-                severities, types, statuses, rules, ref.branch(), ref.pullRequest(), resolved);
-        ToolLogger.completed(log, "getProjectIssuesBreakdown", start);
-        return result;
+        return ToolLogger.run(log, "getProjectIssuesBreakdown", () ->
+                issueService.projectBreakdown(actualProjectKey, componentPathPrefix,
+                        severities, types, statuses, rules, ref.branch(), ref.pullRequest(), resolved));
     }
 }

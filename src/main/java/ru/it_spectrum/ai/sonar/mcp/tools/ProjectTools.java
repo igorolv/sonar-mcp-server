@@ -60,12 +60,10 @@ public class ProjectTools {
             @McpToolParam(description = "Offset for pagination, default 0", required = false) Integer offset
     ) {
         log.info("Tool call: listProjects (query={}, limit={}, offset={})", query, limit, offset);
-        long start = System.nanoTime();
         int actualLimit = limit != null ? limit : properties.pagination().defaultLimit();
         int actualOffset = offset != null ? offset : properties.pagination().defaultOffset();
-        ProjectPage result = projectService.search(query, actualOffset, actualLimit);
-        ToolLogger.completed(log, "listProjects", start);
-        return result;
+        return ToolLogger.run(log, "listProjects", () ->
+                projectService.search(query, actualOffset, actualLimit));
     }
 
     @McpTool(
@@ -91,13 +89,11 @@ public class ProjectTools {
         Ref ref = resolveRef(branch, pullRequest);
         log.info("Tool call: listComponents (projectKey={}, query={}, qualifiers={}, branch={}, pullRequest={}, limit={}, offset={})",
                 actualProjectKey, query, qualifiers, ref.branch(), ref.pullRequest(), limit, offset);
-        long start = System.nanoTime();
         int actualLimit = limit != null ? limit : properties.pagination().defaultLimit();
         int actualOffset = offset != null ? offset : properties.pagination().defaultOffset();
-        ProjectComponentPage result = projectService.searchComponents(
-                actualProjectKey, query, qualifiers, ref.branch(), ref.pullRequest(), actualOffset, actualLimit);
-        ToolLogger.completed(log, "listComponents", start);
-        return result;
+        return ToolLogger.run(log, "listComponents", () ->
+                projectService.searchComponents(
+                        actualProjectKey, query, qualifiers, ref.branch(), ref.pullRequest(), actualOffset, actualLimit));
     }
 
     @McpTool(
@@ -119,10 +115,8 @@ public class ProjectTools {
         Ref ref = resolveRef(branch, pullRequest);
         log.info("Tool call: getProject (projectKey={}, branch={}, pullRequest={})",
                 actualProjectKey, ref.branch(), ref.pullRequest());
-        long start = System.nanoTime();
-        ProjectOverview result = projectService.getOverview(actualProjectKey, ref.branch(), ref.pullRequest());
-        ToolLogger.completed(log, "getProject", start);
-        return result;
+        return ToolLogger.run(log, "getProject", () ->
+                projectService.getOverview(actualProjectKey, ref.branch(), ref.pullRequest()));
     }
 
     @McpTool(
@@ -138,10 +132,8 @@ public class ProjectTools {
     ) {
         String actualProjectKey = resolveProjectKey(projectKey);
         log.info("Tool call: listProjectBranches (projectKey={})", actualProjectKey);
-        long start = System.nanoTime();
-        ProjectBranches result = projectService.listBranches(actualProjectKey);
-        ToolLogger.completed(log, "listProjectBranches", start);
-        return result;
+        return ToolLogger.run(log, "listProjectBranches", () ->
+                projectService.listBranches(actualProjectKey));
     }
 
     @McpTool(
@@ -158,9 +150,7 @@ public class ProjectTools {
     ) {
         String actualProjectKey = resolveProjectKey(projectKey);
         log.info("Tool call: listProjectPullRequests (projectKey={})", actualProjectKey);
-        long start = System.nanoTime();
-        ProjectPullRequests result = projectService.listPullRequests(actualProjectKey);
-        ToolLogger.completed(log, "listProjectPullRequests", start);
-        return result;
+        return ToolLogger.run(log, "listProjectPullRequests", () ->
+                projectService.listPullRequests(actualProjectKey));
     }
 }

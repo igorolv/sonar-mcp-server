@@ -9,7 +9,6 @@ import ru.it_spectrum.ai.sonar.mcp.api.HotspotDetails;
 import ru.it_spectrum.ai.sonar.mcp.api.HotspotPage;
 import ru.it_spectrum.ai.sonar.mcp.config.SonarClientProperties;
 import ru.it_spectrum.ai.sonar.mcp.config.SonarMcpProperties;
-import ru.it_spectrum.ai.sonar.mcp.service.HotspotNotFoundException;
 import ru.it_spectrum.ai.sonar.mcp.service.HotspotService;
 import ru.it_spectrum.ai.sonar.mcp.tools.RefResolver.Ref;
 
@@ -74,13 +73,11 @@ public class HotspotTools {
         Ref ref = resolveRef(branch, pullRequest);
         log.info("Tool call: listHotspots (projectKey={}, componentPathPrefix={}, status={}, branch={}, pullRequest={}, limit={}, offset={})",
                 actualProjectKey, componentPathPrefix, status, ref.branch(), ref.pullRequest(), limit, offset);
-        long start = System.nanoTime();
         int actualLimit = limit != null ? limit : properties.pagination().defaultLimit();
         int actualOffset = offset != null ? offset : properties.pagination().defaultOffset();
-        HotspotPage result = hotspotService.list(actualProjectKey, componentPathPrefix, status, ref.branch(), ref.pullRequest(),
-                actualOffset, actualLimit);
-        ToolLogger.completed(log, "listHotspots", start);
-        return result;
+        return ToolLogger.run(log, "listHotspots", () ->
+                hotspotService.list(actualProjectKey, componentPathPrefix, status, ref.branch(), ref.pullRequest(),
+                        actualOffset, actualLimit));
     }
 
     @McpTool(
@@ -93,14 +90,7 @@ public class HotspotTools {
             @McpToolParam(description = "Sonar hotspot key") String hotspotKey
     ) {
         log.info("Tool call: getHotspot (hotspotKey={})", hotspotKey);
-        long start = System.nanoTime();
-        try {
-            HotspotDetails result = hotspotService.findOne(hotspotKey);
-            ToolLogger.completed(log, "getHotspot", start);
-            return result;
-        } catch (HotspotNotFoundException e) {
-            ToolLogger.failed(log, "getHotspot", start, e.getMessage());
-            throw e;
-        }
+        return ToolLogger.run(log, "getHotspot", () ->
+                hotspotService.findOne(hotspotKey));
     }
 }

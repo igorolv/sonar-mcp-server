@@ -6,7 +6,6 @@ import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
 import org.springframework.stereotype.Service;
 import ru.it_spectrum.ai.sonar.mcp.api.RuleDetails;
-import ru.it_spectrum.ai.sonar.mcp.service.RuleNotFoundException;
 import ru.it_spectrum.ai.sonar.mcp.service.RuleService;
 
 @Service
@@ -31,14 +30,6 @@ public class RuleTools {
             @McpToolParam(description = "Rule key, e.g. 'java:S1234', 'javascript:S5678'") String ruleKey
     ) {
         log.info("Tool call: getRule (ruleKey={})", ruleKey);
-        long start = System.nanoTime();
-        try {
-            RuleDetails result = ruleService.get(ruleKey);
-            ToolLogger.completed(log, "getRule", start);
-            return result;
-        } catch (RuleNotFoundException e) {
-            ToolLogger.failed(log, "getRule", start, e.getMessage());
-            throw e;
-        }
+        return ToolLogger.run(log, "getRule", () -> ruleService.get(ruleKey));
     }
 }
