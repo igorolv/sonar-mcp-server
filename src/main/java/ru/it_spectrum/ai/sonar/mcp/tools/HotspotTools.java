@@ -59,9 +59,15 @@ public class HotspotTools {
                     "Restrict results to hotspots whose file path starts with this prefix (e.g. 'bc-doc/src/main' or "
                     + "'bc-doc/src/main/java/ru/foo/Bar.java'). Relative to the Sonar project root. For Java/Kotlin "
                     + "packages convert dots to slashes. Honours directory boundaries: 'bc-doc/src' matches 'bc-doc/src/x' "
-                    + "but not 'bc-doc/srcExtra/x'. Implemented as a client-side filter over a full project scan with a "
-                    + "configured cap (default 10000 issues scanned). If the cap is hit, `pathPrefixTruncated=true` in the "
-                    + "response — tighten the prefix and retry.",
+                    + "but not 'bc-doc/srcExtra/x'. "
+                    + "This must match Sonar's componentPath, which often differs from the path in the source repository — "
+                    + "the project's build setup may drop or collapse segments. If unsure of the exact layout, FIRST call "
+                    + "`listComponents` (with `qualifiers=DIR` or `query=<substring>`) and use the returned `path` value. "
+                    + "A 0-result response with `pathPrefixTruncated=false` typically means the prefix does not match any "
+                    + "analysed file. "
+                    + "Implemented as a client-side filter over a full project scan with a configured cap (default 10000 "
+                    + "issues scanned). If the cap is hit, `pathPrefixTruncated=true` in the response — tighten the prefix "
+                    + "and retry.",
                     required = false) String componentPathPrefix,
             @McpToolParam(description = "Status: TO_REVIEW or REVIEWED (optional, default TO_REVIEW)", required = false) String status,
             @McpToolParam(description = ToolDescriptions.BRANCH_PARAM, required = false) String branch,

@@ -67,19 +67,25 @@ public class ProjectTools {
     }
 
     @McpTool(
-            description = "Search or browse SonarQube components inside a project using Sonar's component tree. " +
-            "Use this before listIssues when the user gives a module, directory, file, or Java/Kotlin package name " +
-            "but not an exact Sonar componentKey. Returned key values are opaque Sonar componentKeys; pass them " +
-            "unchanged to listIssues componentKeys. For package names, convert dots to slashes and match against " +
-            "returned path suffixes; do not pass package names directly as componentKeys."
+            description = "Discover the path layout of a SonarQube project's analysed files. Browses or searches Sonar's " +
+            "component tree and returns, for each component, its `path` (Sonar componentPath), name, qualifier " +
+            "(TRK / DIR / FIL / module-like), and language. " +
+            "USE THIS BEFORE any tool that takes `componentPathPrefix` (listIssues, listHotspots, " +
+            "getProjectIssuesSummary, getProjectIssuesBreakdown) whenever you do not already know the project's exact " +
+            "Sonar path layout. The Sonar componentPath often differs from the path in the source repository — build " +
+            "setups can drop or collapse segments (e.g. a Gradle module at `apps/foo/backend/` may be analysed simply " +
+            "as `foo/` in Sonar), so guessing from the repo layout silently returns 0 results. " +
+            "Typical discovery flow: call with `qualifiers=DIR` to enumerate analysed directories, or with " +
+            "`query=<substring>` to locate a specific module by name; then take the returned `path` value and pass it " +
+            "verbatim as `componentPathPrefix` on issue/hotspot tools."
             + ToolDescriptions.BRANCH_NOTE,
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public ProjectComponentPage listComponents(
             @McpToolParam(description = ToolDescriptions.PROJECT_KEY_PARAM, required = false) String projectKey,
-            @McpToolParam(description = "Optional substring search applied by Sonar to component names/paths. For package lookup, use the last package segment then match returned path suffixes.", required = false) String query,
-            @McpToolParam(description = "Optional comma-separated Sonar component qualifiers, for example DIR,FIL. Omit when unsure; returned qualifiers explain each component type.", required = false) String qualifiers,
+            @McpToolParam(description = "Optional substring filter applied by Sonar to component names/paths. Useful with `qualifiers=DIR` to locate a specific directory or module by name.", required = false) String query,
+            @McpToolParam(description = "Optional comma-separated Sonar component qualifiers, for example `DIR,FIL`. Use `DIR` when discovering the directory layout for `componentPathPrefix`. Omit when unsure; the returned `qualifier` field labels each component type.", required = false) String qualifiers,
             @McpToolParam(description = ToolDescriptions.BRANCH_PARAM, required = false) String branch,
             @McpToolParam(description = ToolDescriptions.PR_PARAM, required = false) String pullRequest,
             @McpToolParam(description = "Maximum number of results per page. If omitted, the server applies its default page size.", required = false) Integer limit,

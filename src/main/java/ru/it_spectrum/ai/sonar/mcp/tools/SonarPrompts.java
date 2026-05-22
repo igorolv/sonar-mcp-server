@@ -50,9 +50,13 @@ public class SonarPrompts {
 
     private static final String PATH_PREFIX_NOTE = """
             Path filter discipline: `listIssues`, `listHotspots`, `getProjectIssuesSummary`, and `getProjectIssuesBreakdown`
-            accept a single scoping parameter `componentPathPrefix` — a path relative to the Sonar project root. Convert Java/Kotlin
-            package names by replacing dots with slashes (`ru.foo.bar` -> `ru/foo/bar`). The filter is client-side; if the response
-            sets `pathPrefixTruncated=true`, the scan hit the configured cap before finishing — tighten the prefix and retry.""";
+            accept a single scoping parameter `componentPathPrefix` — a path relative to the Sonar project root. The value must
+            match Sonar's componentPath, which often differs from the path in the source repository (build setups can drop or
+            collapse segments). If unsure of the layout, FIRST call `listComponents` (with `qualifiers=DIR` or `query=<substring>`)
+            and use the returned `path` field as the authoritative prefix. Convert Java/Kotlin package names by replacing dots
+            with slashes (`ru.foo.bar` -> `ru/foo/bar`). The filter is client-side; if the response sets
+            `pathPrefixTruncated=true`, the scan hit the configured cap before finishing — tighten the prefix and retry. A
+            0-result response with `pathPrefixTruncated=false` typically means the prefix does not match any analysed file.""";
 
     private static final String RULE_REUSE_NOTE = """
             Rule lookup discipline: after listing issues, collect the SET of UNIQUE rule keys. Call `getRule` ONCE per unique key,

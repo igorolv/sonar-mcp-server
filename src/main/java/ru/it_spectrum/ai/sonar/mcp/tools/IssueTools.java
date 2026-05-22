@@ -25,9 +25,15 @@ public class IssueTools {
             "Restrict results to issues whose file path starts with this prefix (e.g. 'bc-doc/src/main' or "
             + "'bc-doc/src/main/java/ru/foo/Bar.java'). Path is relative to the Sonar project root. For Java/Kotlin "
             + "packages convert dots to slashes ('ru.foo.bar' -> 'ru/foo/bar'). Match honours directory boundaries: "
-            + "prefix 'bc-doc/src' matches 'bc-doc/src/x' but not 'bc-doc/srcExtra/x'. Implemented as a client-side "
-            + "filter over a full project scan with a configured cap (default 10000 issues scanned). If the cap is "
-            + "hit, `pathPrefixTruncated=true` in the response — tighten the prefix and retry.";
+            + "prefix 'bc-doc/src' matches 'bc-doc/src/x' but not 'bc-doc/srcExtra/x'. "
+            + "This must match Sonar's componentPath, which often differs from the path in the source repository — "
+            + "the project's build setup may drop or collapse segments (a Gradle module at apps/foo/backend/ may be "
+            + "analysed as foo/ in Sonar). If unsure of the exact layout, FIRST call `listComponents` (with "
+            + "`qualifiers=DIR` or `query=<substring>`) and use the returned `path` value — that is the authoritative "
+            + "componentPath. A 0-result response with `pathPrefixTruncated=false` typically means the prefix does not "
+            + "match any analysed file. "
+            + "Implemented as a client-side filter over a full project scan with a configured cap (default 10000 "
+            + "issues scanned). If the cap is hit, `pathPrefixTruncated=true` in the response — tighten the prefix and retry.";
 
     private final IssueService issueService;
     private final SnippetService snippetService;
