@@ -40,7 +40,7 @@ public class ProjectTools {
             return fallback;
         }
         throw new IllegalArgumentException(
-                "projectKey is required: no value passed and no default configured (set SONAR_DEFAULT_PROJECT_KEY)");
+                "projectKey is required: no value passed and the server has no default project configured");
     }
 
     private Ref resolveRef(String branch, String pullRequest) {
@@ -56,7 +56,7 @@ public class ProjectTools {
     )
     public ProjectPage listProjects(
             @McpToolParam(description = "Project name substring filter (optional)", required = false) String query,
-            @McpToolParam(description = "Maximum number of results, uses configured default when omitted", required = false) Integer limit,
+            @McpToolParam(description = "Maximum number of results per page. If omitted, the server applies its default page size.", required = false) Integer limit,
             @McpToolParam(description = "Offset for pagination, default 0", required = false) Integer offset
     ) {
         log.info("Tool call: listProjects (query={}, limit={}, offset={})", query, limit, offset);
@@ -79,12 +79,12 @@ public class ProjectTools {
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public ProjectComponentPage listComponents(
-            @McpToolParam(description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured on the server; otherwise required.", required = false) String projectKey,
+            @McpToolParam(description = ToolDescriptions.PROJECT_KEY_PARAM, required = false) String projectKey,
             @McpToolParam(description = "Optional substring search applied by Sonar to component names/paths. For package lookup, use the last package segment then match returned path suffixes.", required = false) String query,
             @McpToolParam(description = "Optional comma-separated Sonar component qualifiers, for example DIR,FIL. Omit when unsure; returned qualifiers explain each component type.", required = false) String qualifiers,
             @McpToolParam(description = ToolDescriptions.BRANCH_PARAM, required = false) String branch,
             @McpToolParam(description = ToolDescriptions.PR_PARAM, required = false) String pullRequest,
-            @McpToolParam(description = "Maximum number of results, uses configured default when omitted", required = false) Integer limit,
+            @McpToolParam(description = "Maximum number of results per page. If omitted, the server applies its default page size.", required = false) Integer limit,
             @McpToolParam(description = "Offset for pagination, default 0", required = false) Integer offset
     ) {
         String actualProjectKey = resolveProjectKey(projectKey);
@@ -111,7 +111,7 @@ public class ProjectTools {
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public ProjectOverview getProject(
-            @McpToolParam(description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured on the server; otherwise required.", required = false) String projectKey,
+            @McpToolParam(description = ToolDescriptions.PROJECT_KEY_PARAM, required = false) String projectKey,
             @McpToolParam(description = ToolDescriptions.BRANCH_PARAM, required = false) String branch,
             @McpToolParam(description = ToolDescriptions.PR_PARAM, required = false) String pullRequest
     ) {
@@ -134,7 +134,7 @@ public class ProjectTools {
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public ProjectBranches listProjectBranches(
-            @McpToolParam(description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured on the server; otherwise required.", required = false) String projectKey
+            @McpToolParam(description = ToolDescriptions.PROJECT_KEY_PARAM, required = false) String projectKey
     ) {
         String actualProjectKey = resolveProjectKey(projectKey);
         log.info("Tool call: listProjectBranches (projectKey={})", actualProjectKey);
@@ -154,7 +154,7 @@ public class ProjectTools {
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public ProjectPullRequests listProjectPullRequests(
-            @McpToolParam(description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured on the server; otherwise required.", required = false) String projectKey
+            @McpToolParam(description = ToolDescriptions.PROJECT_KEY_PARAM, required = false) String projectKey
     ) {
         String actualProjectKey = resolveProjectKey(projectKey);
         log.info("Tool call: listProjectPullRequests (projectKey={})", actualProjectKey);

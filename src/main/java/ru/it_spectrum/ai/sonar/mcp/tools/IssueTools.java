@@ -27,8 +27,8 @@ public class IssueTools {
             + "'bc-doc/src/main/java/ru/foo/Bar.java'). Path is relative to the Sonar project root. For Java/Kotlin "
             + "packages convert dots to slashes ('ru.foo.bar' -> 'ru/foo/bar'). Match honours directory boundaries: "
             + "prefix 'bc-doc/src' matches 'bc-doc/src/x' but not 'bc-doc/srcExtra/x'. Implemented as a client-side "
-            + "filter over a full project scan capped at sonar-mcp.path-filter.max-scanned-issues (default 10000); "
-            + "if the cap is hit, pathPrefixTruncated=true in the response and you should tighten the prefix.";
+            + "filter over a full project scan with a configured cap (default 10000 issues scanned). If the cap is "
+            + "hit, `pathPrefixTruncated=true` in the response — tighten the prefix and retry.";
 
     private final IssueService issueService;
     private final SnippetService snippetService;
@@ -52,7 +52,7 @@ public class IssueTools {
             return fallback;
         }
         throw new IllegalArgumentException(
-                "projectKey is required: no value passed and no default configured (set SONAR_DEFAULT_PROJECT_KEY)");
+                "projectKey is required: no value passed and the server has no default project configured");
     }
 
     private Ref resolveRef(String branch, String pullRequest) {
@@ -71,7 +71,7 @@ public class IssueTools {
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public IssuePage listIssues(
-            @McpToolParam(description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured on the server; otherwise required. Use listProjects to find it.", required = false) String projectKey,
+            @McpToolParam(description = ToolDescriptions.PROJECT_KEY_PARAM, required = false) String projectKey,
             @McpToolParam(description = PATH_PREFIX_PARAM, required = false) String componentPathPrefix,
             @McpToolParam(description = "Severities: comma-separated, any of INFO,MINOR,MAJOR,CRITICAL,BLOCKER (optional)", required = false) String severities,
             @McpToolParam(description = "Types: comma-separated, any of CODE_SMELL,BUG,VULNERABILITY (optional)", required = false) String types,
@@ -80,7 +80,7 @@ public class IssueTools {
             @McpToolParam(description = ToolDescriptions.BRANCH_PARAM, required = false) String branch,
             @McpToolParam(description = ToolDescriptions.PR_PARAM, required = false) String pullRequest,
             @McpToolParam(description = "Filter by resolved state: true / false (optional). When omitted with no statuses, defaults to false (open issues).", required = false) Boolean resolved,
-            @McpToolParam(description = "Maximum number of results per page, uses configured default when omitted (Sonar caps at 500)", required = false) Integer limit,
+            @McpToolParam(description = "Maximum number of results per page. If omitted, the server applies its default page size (Sonar caps at 500).", required = false) Integer limit,
             @McpToolParam(description = "Offset for pagination, default 0. Internally rounded down to a page boundary.", required = false) Integer offset
     ) {
         String actualProjectKey = resolveProjectKey(projectKey);
@@ -153,7 +153,7 @@ public class IssueTools {
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public ProjectIssuesSummary getProjectIssuesSummary(
-            @McpToolParam(description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured on the server; otherwise required.", required = false) String projectKey,
+            @McpToolParam(description = ToolDescriptions.PROJECT_KEY_PARAM, required = false) String projectKey,
             @McpToolParam(description = PATH_PREFIX_PARAM, required = false) String componentPathPrefix,
             @McpToolParam(description = "Severities: comma-separated, any of INFO,MINOR,MAJOR,CRITICAL,BLOCKER (optional)", required = false) String severities,
             @McpToolParam(description = "Types: comma-separated, any of CODE_SMELL,BUG,VULNERABILITY (optional)", required = false) String types,
@@ -184,7 +184,7 @@ public class IssueTools {
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public ProjectIssuesBreakdown getProjectIssuesBreakdown(
-            @McpToolParam(description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured on the server; otherwise required.", required = false) String projectKey,
+            @McpToolParam(description = ToolDescriptions.PROJECT_KEY_PARAM, required = false) String projectKey,
             @McpToolParam(description = PATH_PREFIX_PARAM, required = false) String componentPathPrefix,
             @McpToolParam(description = "Severities: comma-separated, any of INFO,MINOR,MAJOR,CRITICAL,BLOCKER (optional)", required = false) String severities,
             @McpToolParam(description = "Types: comma-separated, any of CODE_SMELL,BUG,VULNERABILITY (optional)", required = false) String types,

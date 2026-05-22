@@ -5,7 +5,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 
 @Schema(description = "Advisory attached to a Sonar response when the call ran against the project's main branch by default — "
-        + "because the caller passed neither `branch` nor `pullRequest`, and no `SONAR_DEFAULT_BRANCH` is configured server-side — "
+        + "because the caller passed neither `branch` nor `pullRequest`, and the server has no default branch configured — "
         + "yet other branches have been analysed in Sonar. Use it to spot the case where the agent is silently reading `main` "
         + "while the user is actually working on a feature branch.")
 public record BranchAdvisory(

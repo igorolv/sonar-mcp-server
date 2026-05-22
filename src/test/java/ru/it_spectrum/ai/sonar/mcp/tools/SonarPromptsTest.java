@@ -96,8 +96,8 @@ class SonarPromptsTest {
     @Test
     void analyzePathOmittedProjectKeyTellsModelToUseDefault() {
         String text = prompts.analyzePath(null, null, null, null);
-        assertThat(text).contains("SONAR_DEFAULT_PROJECT_KEY");
         assertThat(text).contains("Do NOT pass `projectKey`");
+        assertThat(text).contains("server uses its configured default project");
     }
 
     @Test

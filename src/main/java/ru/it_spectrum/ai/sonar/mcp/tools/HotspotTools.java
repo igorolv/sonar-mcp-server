@@ -38,7 +38,7 @@ public class HotspotTools {
             return fallback;
         }
         throw new IllegalArgumentException(
-                "projectKey is required: no value passed and no default configured (set SONAR_DEFAULT_PROJECT_KEY)");
+                "projectKey is required: no value passed and the server has no default project configured");
     }
 
     private Ref resolveRef(String branch, String pullRequest) {
@@ -55,19 +55,19 @@ public class HotspotTools {
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public HotspotPage listHotspots(
-            @McpToolParam(description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured on the server; otherwise required.", required = false) String projectKey,
+            @McpToolParam(description = ToolDescriptions.PROJECT_KEY_PARAM, required = false) String projectKey,
             @McpToolParam(description =
                     "Restrict results to hotspots whose file path starts with this prefix (e.g. 'bc-doc/src/main' or "
                     + "'bc-doc/src/main/java/ru/foo/Bar.java'). Relative to the Sonar project root. For Java/Kotlin "
                     + "packages convert dots to slashes. Honours directory boundaries: 'bc-doc/src' matches 'bc-doc/src/x' "
-                    + "but not 'bc-doc/srcExtra/x'. Implemented as a client-side filter over a full project scan capped at "
-                    + "sonar-mcp.path-filter.max-scanned-issues (default 10000); if the cap is hit, pathPrefixTruncated=true "
-                    + "in the response.",
+                    + "but not 'bc-doc/srcExtra/x'. Implemented as a client-side filter over a full project scan with a "
+                    + "configured cap (default 10000 issues scanned). If the cap is hit, `pathPrefixTruncated=true` in the "
+                    + "response — tighten the prefix and retry.",
                     required = false) String componentPathPrefix,
             @McpToolParam(description = "Status: TO_REVIEW or REVIEWED (optional, default TO_REVIEW)", required = false) String status,
             @McpToolParam(description = ToolDescriptions.BRANCH_PARAM, required = false) String branch,
             @McpToolParam(description = ToolDescriptions.PR_PARAM, required = false) String pullRequest,
-            @McpToolParam(description = "Maximum number of results, uses configured default when omitted", required = false) Integer limit,
+            @McpToolParam(description = "Maximum number of results per page. If omitted, the server applies its default page size.", required = false) Integer limit,
             @McpToolParam(description = "Offset for pagination, default 0", required = false) Integer offset
     ) {
         String actualProjectKey = resolveProjectKey(projectKey);

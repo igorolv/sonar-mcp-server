@@ -17,8 +17,8 @@ public class SonarPrompts {
 
     private static String describeProject(String projectKey) {
         if (!present(projectKey)) {
-            return "Do NOT pass `projectKey` — omit it so the server falls back to `SONAR_DEFAULT_PROJECT_KEY`. " +
-                    "If that fallback is not configured, the call will fail; in that case call `listProjects` to discover the key and retry.";
+            return "Do NOT pass `projectKey` — omit it so the server uses its configured default project. " +
+                    "If no default is configured, the call will fail; in that case call `listProjects` to discover the key and retry.";
         }
         return "Pass projectKey=`%s` to every tool call that accepts it.".formatted(projectKey);
     }
@@ -32,10 +32,10 @@ public class SonarPrompts {
             return "Scope every Sonar call by passing branch=`%s`. Do NOT also pass `pullRequest`.".formatted(branch);
         }
         return """
-                No `branch` or `pullRequest` argument was provided. Sonar will default to the project's main branch
-                (or `SONAR_DEFAULT_BRANCH` if the server has one configured). BEFORE running the steps below, verify
-                this is the right scope: check the user's current git branch / open PR. If their local repo is on a
-                non-main branch, or they are reviewing a pull request, FIRST call `listProjectBranches` (or
+                No `branch` or `pullRequest` argument was provided. The call will use the server's configured default
+                branch (typically the project's main branch in Sonar). BEFORE running the steps below, verify this is
+                the right scope: check the user's current git branch / open PR. If their local repo is on a non-main
+                branch, or they are reviewing a pull request, FIRST call `listProjectBranches` (or
                 `listProjectPullRequests`) on the server-prefixed Sonar MCP tool and pick the matching ref. Then
                 restart this prompt with `branch=` (or `pullRequest=`) set explicitly. Only proceed against main when
                 you have confirmed it is the intended scope.""";
@@ -66,7 +66,7 @@ public class SonarPrompts {
                     "before drilling into individual issues."
     )
     public String analyzePath(
-            @McpArg(name = "projectKey", description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured.", required = false) String projectKey,
+            @McpArg(name = "projectKey", description = ToolDescriptions.PROJECT_KEY_PARAM, required = false) String projectKey,
             @McpArg(name = "path", description = "Path relative to the Sonar project root (e.g. 'src/main/java/ru/foo'). Optional — omit to analyse the whole project.", required = false) String path,
             @McpArg(name = "branch", description = "Sonar branch name (optional). Mutually exclusive with pullRequest.", required = false) String branch,
             @McpArg(name = "pullRequest", description = "Sonar pull request key (optional). Mutually exclusive with branch.", required = false) String pullRequest
@@ -150,7 +150,7 @@ public class SonarPrompts {
     )
     public String fixPath(
             @McpArg(name = "path", description = "Path to fix, relative to the Sonar project root (e.g. 'src/main/java/ru/foo').", required = true) String path,
-            @McpArg(name = "projectKey", description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured.", required = false) String projectKey,
+            @McpArg(name = "projectKey", description = ToolDescriptions.PROJECT_KEY_PARAM, required = false) String projectKey,
             @McpArg(name = "severities", description = "Comma-separated severities to focus on (INFO,MINOR,MAJOR,CRITICAL,BLOCKER). Optional — omit for all severities.", required = false) String severities,
             @McpArg(name = "branch", description = "Sonar branch name (optional). Mutually exclusive with pullRequest.", required = false) String branch,
             @McpArg(name = "pullRequest", description = "Sonar pull request key (optional). Mutually exclusive with branch.", required = false) String pullRequest
@@ -251,7 +251,7 @@ public class SonarPrompts {
     )
     public String fixFile(
             @McpArg(name = "filePath", description = "File path relative to the Sonar project root (e.g. 'src/main/java/ru/foo/Bar.java').", required = true) String filePath,
-            @McpArg(name = "projectKey", description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured.", required = false) String projectKey,
+            @McpArg(name = "projectKey", description = ToolDescriptions.PROJECT_KEY_PARAM, required = false) String projectKey,
             @McpArg(name = "branch", description = "Sonar branch name (optional). Mutually exclusive with pullRequest.", required = false) String branch,
             @McpArg(name = "pullRequest", description = "Sonar pull request key (optional). Mutually exclusive with branch.", required = false) String pullRequest
     ) {
@@ -426,7 +426,7 @@ public class SonarPrompts {
     )
     public String reviewPullRequest(
             @McpArg(name = "pullRequest", description = "Sonar pull request key (e.g. '1234' — the PR number). Use listProjectPullRequests if unsure.", required = true) String pullRequest,
-            @McpArg(name = "projectKey", description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured.", required = false) String projectKey
+            @McpArg(name = "projectKey", description = ToolDescriptions.PROJECT_KEY_PARAM, required = false) String projectKey
     ) {
         log.info("Prompt requested: review-pull-request (pullRequest={}, projectKey={})", pullRequest, projectKey);
         return """
