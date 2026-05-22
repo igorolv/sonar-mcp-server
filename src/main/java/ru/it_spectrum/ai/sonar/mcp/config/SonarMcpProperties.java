@@ -9,13 +9,15 @@ import java.nio.file.Path;
 public record SonarMcpProperties(
         String dataDir,
         Pagination pagination,
-        Snippet snippet
+        Snippet snippet,
+        PathFilter pathFilter
 ) {
     public static final String DEFAULT_DATA_DIR_NAME = ".sonar-mcp-server";
     public static final int DEFAULT_PAGE_LIMIT = 50;
     public static final int DEFAULT_PAGE_OFFSET = 0;
     public static final int DEFAULT_PAGE_MAX_LIMIT = 500;
     public static final int DEFAULT_SNIPPET_MAX_LINES = 50;
+    public static final int DEFAULT_PATH_FILTER_MAX_SCANNED = 10_000;
 
     public SonarMcpProperties {
         pagination = pagination != null
@@ -24,6 +26,9 @@ public record SonarMcpProperties(
         snippet = snippet != null
                 ? snippet
                 : new Snippet(DEFAULT_SNIPPET_MAX_LINES);
+        pathFilter = pathFilter != null
+                ? pathFilter
+                : new PathFilter(DEFAULT_PATH_FILTER_MAX_SCANNED);
     }
 
     public Path resolvedDataDir() {
@@ -61,6 +66,20 @@ public record SonarMcpProperties(
         public Snippet {
             if (maxLines <= 0) {
                 maxLines = DEFAULT_SNIPPET_MAX_LINES;
+            }
+        }
+    }
+
+    /**
+     * Caps the scan-and-filter mechanism behind {@code componentPathPrefix}: how many issues we
+     * pull from Sonar before giving up and returning a truncated result.
+     */
+    public record PathFilter(
+            @DefaultValue("" + DEFAULT_PATH_FILTER_MAX_SCANNED) int maxScannedIssues
+    ) {
+        public PathFilter {
+            if (maxScannedIssues <= 0) {
+                maxScannedIssues = DEFAULT_PATH_FILTER_MAX_SCANNED;
             }
         }
     }

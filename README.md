@@ -56,10 +56,10 @@ The server exports **12 read-only MCP tools**.
 
 | Tool | Description |
 |---|---|
-| `listIssues` | Flat list of issues for a project. Parameters: `projectKey` (required unless defaulted), Sonar filters `componentKeys`, `directories`, `files` (opt.), `severities`, `types`, `statuses`, `rules`, `branch` / `pullRequest` (mutually exclusive), `resolved`, `limit`, `offset`. Use `listComponents` first when the user gives a module, directory, file, or package name instead of an exact Sonar component key. By default returns only open issues (`resolved=false`, statuses OPEN/CONFIRMED/REOPENED). Each item contains the rule, severity, type, status, file path, line, primary textRange, and secondary flows for cross-file rules. |
+| `listIssues` | Flat list of issues for a project. Parameters: `projectKey` (required unless defaulted), `componentPathPrefix` (opt.) — a single subtree-or-file filter relative to the Sonar project root (e.g. `bc-doc/src/main/java/ru/foo` or `bc-doc/src/main/java/ru/foo/Bar.java`); convert Java/Kotlin package dots to slashes; honours directory boundaries (`bc-doc/src` does not match `bc-doc/srcExtra`). Plus `severities`, `types`, `statuses`, `rules`, `branch` / `pullRequest` (mutually exclusive), `resolved`, `limit`, `offset`. By default returns only open issues (`resolved=false`, statuses OPEN/CONFIRMED/REOPENED). Each item contains the rule, severity, type, status, file path, line, primary textRange, and secondary flows for cross-file rules. When `componentPathPrefix` is used, the server scans the project and filters client-side; the scan is capped (default 10000 issues) — if the cap is hit, `pathPrefixTruncated=true` in the response. |
 | `getIssue` | Details of a single issue by key plus its change history (`changelog`). Accepts optional `branch` / `pullRequest`. |
 | `getIssueSnippets` | Source-code snippets around all issue locations (primary plus flows for cross-file rules). For each location: `componentPath`, language, and an array of source lines with SCM info. Useful when the repository isn't available locally or you need to see exactly the file version Sonar analyzed. Accepts optional `branch` / `pullRequest` — important when the issue lives on a non-main ref whose files differ from main. |
-| `getProjectIssuesSummary` | Aggregated summary of open issues in a project: total plus breakdowns by severity, type, status, rule, tag, and SCM author. Parameters mirror `listIssues` except pagination. |
+| `getProjectIssuesSummary` | Aggregated summary of open issues in a project: total plus breakdowns by severity, type, status, rule, tag, and SCM author. Parameters mirror `listIssues` (incl. `componentPathPrefix`) except pagination. |
 | `getProjectIssuesBreakdown` | Multi-module aggregation of issues by logical module and rule. Module is derived from the first `componentPath` segment. Parameters mirror `getProjectIssuesSummary`. |
 
 ### Rules
@@ -72,7 +72,7 @@ The server exports **12 read-only MCP tools**.
 
 | Tool | Description |
 |---|---|
-| `listHotspots` | List of Security Hotspots for a project. Hotspots are a separate category from issues, marking spots that require manual security review. By default Sonar returns hotspots in status `TO_REVIEW`. Parameters: `projectKey`, raw Sonar `files` filter (opt.), `status` (opt.), `branch` / `pullRequest` (opt., mutually exclusive), `limit`, `offset`. |
+| `listHotspots` | List of Security Hotspots for a project. Hotspots are a separate category from issues, marking spots that require manual security review. By default Sonar returns hotspots in status `TO_REVIEW`. Parameters: `projectKey`, `componentPathPrefix` (opt.) — same prefix semantics as on `listIssues`, `status` (opt.), `branch` / `pullRequest` (opt., mutually exclusive), `limit`, `offset`. Subject to the same client-side scan cap (`pathPrefixTruncated` flag in the response). |
 | `getHotspot` | Security Hotspot details: full rule description (risk, vulnerability, fix recommendations), primary textRange, secondary flows, changelog. Hotspot keys are globally unique, so no `branch`/`pullRequest` parameter is needed. |
 
 All tools are **read-only** — no data in SonarQube is modified.
@@ -124,6 +124,7 @@ The server needs a SonarQube URL and token; the rest is optional.
 | `SONAR_MCP_PAGINATION_DEFAULT_OFFSET` | Default offset for list tools; defaults to `0` |
 | `SONAR_MCP_PAGINATION_MAX_LIMIT` | Max page limit (Sonar API itself caps at 500); defaults to `500` |
 | `SONAR_MCP_SNIPPET_MAX_LINES` | Reserved for future per-snippet line cap; currently unused (Sonar picks the window itself). Defaults to `50` |
+| `SONAR_MCP_PATH_FILTER_MAX_SCANNED_ISSUES` | Hard cap on issues/hotspots scanned client-side when `componentPathPrefix` is set; defaults to `10000`. If the cap is hit, the response carries `pathPrefixTruncated=true`. |
 
 ### Getting the SonarQube URL
 
@@ -256,7 +257,7 @@ Integration tests require a reachable SonarQube and real data. Unit tests exclud
 
 - HTTP timeouts and retry policy aren't separately configurable yet.
 - The Sonar API uses page-based pagination (`p`/`ps`); the tools accept `offset`/`limit`, and an offset that is not a multiple of `limit` is rounded down to the nearest page boundary. Sonar also caps `ps` at 500.
-- `componentKeys`, `directories`, and `files` are raw SonarQube filters. Use them only when you intentionally need Sonar's native component/directory/file semantics. There is no MCP-side friendly `path` filter for issues or hotspots.
+- `componentPathPrefix` is a client-side filter: the server pages through the project's issues / hotspots and keeps those whose `componentPath` starts with the prefix (directory-boundary safe). The scan is capped (`SONAR_MCP_PATH_FILTER_MAX_SCANNED_ISSUES`, default 10000); when the cap is hit, the response sets `pathPrefixTruncated=true` and the caller should tighten the prefix.
 - The `author` field on `Issue` is the SCM author of the line where the issue occurred (populated by Sonar when an SCM provider is configured). Sonar doesn't return separate `scmAuthor`/`scmDate` fields in `issues/search`; for line-level SCM use `getIssueSnippets`.
 
 ## Project layout
@@ -309,4 +310,5 @@ Integration tests require a reachable SonarQube and real data. Unit tests exclud
 - **"Gradle requires JVM 17 or later"** — set `JAVA_HOME` to a JDK 25+.
 - **Connection refused / 401** — check URL and token. Test: `curl -u "$SONAR_TOKEN:" "$SONAR_URL/api/components/search?qualifiers=TRK&p=1&ps=1"`.
 - **403 Forbidden** — the token user has no rights on the project or on the web-api. Check the role in SonarQube.
-- **Package/module scope returns 0 issues** — do not pass Java package names directly as `componentKeys`. Call `listComponents`, match the returned `path` values to the module/directory/package you need, then pass the returned opaque `key` unchanged as `listIssues.componentKeys`.
+- **Package/module scope returns 0 issues** — pass the path-style prefix as `componentPathPrefix` (e.g. `bc-doc/src/main/java/ru/foo`), not a Sonar component key. Convert Java/Kotlin package dots to slashes. The filter is directory-boundary safe, so `bc-doc/src` will not match `bc-doc/srcExtra`.
+- **`pathPrefixTruncated=true` in the response** — the client-side scan hit `SONAR_MCP_PATH_FILTER_MAX_SCANNED_ISSUES` before reaching the end. Tighten the prefix to reduce the scan, or raise the cap if 10k is genuinely not enough for your project.

@@ -85,11 +85,14 @@ directly from a tool — go through a service. Never return a `client.model.*` t
 - **Pagination.** External API is `offset`/`limit`. Internally we convert to Sonar's `p`/`ps` via
   `PaginationHelper.toPage`. If `offset` is not a multiple of `limit`, Sonar returns the page
   containing it (we round down).
-- **Component scoping.** Issue tools do not expose a friendly `path` filter. Use `listComponents` to resolve modules,
-  directories, files, or Java/Kotlin package names to Sonar component `key` values, then pass those opaque keys unchanged
-  as `componentKeys`. Raw Sonar filters are also exposed as `directories` and `files`; do not pass package names directly
-  as `componentKeys`. Hotspot tools expose only Sonar's native project scope and `files` filter — no directory/module/package
-  friendly filter.
+- **Component scoping.** Issue and hotspot tools expose a single scoping parameter: `componentPathPrefix`. It is a path
+  relative to the Sonar project root (e.g. `bc-doc/src/main/java/ru/foo` or `bc-doc/src/main/java/ru/foo/Bar.java`).
+  Implemented client-side: the service scans the project's issues / hotspots and keeps those whose `componentPath`
+  starts with `prefix + "/"` (or equals `prefix` for an exact file match). Directory boundaries are honoured —
+  `bc-doc/src` does not match `bc-doc/srcExtra`. The scan is bounded by
+  `SonarMcpProperties.PathFilter.maxScannedIssues` (default 10000); when the cap is hit, the response carries
+  `pathPrefixTruncated=true`. Do NOT add raw `componentKeys` / `directories` / `files` parameters back —
+  they were removed because LLMs systematically built broken Sonar keys.
 - **Default scope for listIssues.** When both `statuses` and `resolved` are omitted, the service
   defaults to `resolved=false` + `statuses=OPEN,CONFIRMED,REOPENED` (open issues only).
 - **Component path resolution.** `SonarMappers.toIssue` resolves `componentPath` from the
@@ -146,5 +149,6 @@ Add a unit test for any new mapping rule, parameter default, or error path.
 - Don't print to `System.out` (use SLF4J -> the file/stderr appenders).
 - Don't return raw `client.model.*` from tools.
 - Don't bypass `SonarMappers` — keeping mapping in one place makes wire-format changes easy.
-- Don't widen `componentKeys` behaviour without checking Sonar 9 docs first.
+- Don't reintroduce raw `componentKeys` / `directories` / `files` parameters on `listIssues`, summary, breakdown, or `listHotspots`. The single `componentPathPrefix` is intentional; widening the API surface again undoes the LLM-ergonomics fix.
+- Don't bypass the `PathFilter.maxScannedIssues` cap. If a project legitimately exceeds 10k issues under a useful prefix, raise the configured cap; do not remove the truncation flag.
 - Don't add a dependency on PDFBox / POI / Tika — there are no binary attachments here.

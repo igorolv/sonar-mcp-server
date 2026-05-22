@@ -55,7 +55,6 @@ class SonarMappersTest {
         assertThat(issue.author()).isEqualTo("alice");
         assertThat(issue.flows()).singleElement().satisfies(flow -> {
             assertThat(flow.locations()).singleElement().satisfies(loc -> {
-                assertThat(loc.componentKey()).isEqualTo("asv:src/main/java/Bar.java");
                 assertThat(loc.componentPath()).isEqualTo("src/main/java/Bar.java");
                 assertThat(loc.message()).isEqualTo("secondary");
             });

@@ -18,6 +18,10 @@ public record ProjectIssuesBreakdown(
         @Schema(description = "Present only when the call ran against the project's main branch by default and other branches exist; "
                 + "see BranchAdvisory for details.",
                 nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-        BranchAdvisory branchAdvisory
+        BranchAdvisory branchAdvisory,
+        @Schema(description = "True when componentPathPrefix was supplied and the underlying scan hit the configured "
+                + "maximum issue count before exhausting Sonar. Totals/modules reflect only the scanned slice.",
+                requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+        boolean pathPrefixTruncated
 ) {
 }

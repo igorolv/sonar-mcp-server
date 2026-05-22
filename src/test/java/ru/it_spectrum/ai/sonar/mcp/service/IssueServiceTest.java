@@ -47,7 +47,7 @@ class IssueServiceTest {
         ArgumentCaptor<SonarClient.IssueSearchParams> captor =
                 ArgumentCaptor.forClass(SonarClient.IssueSearchParams.class);
 
-        service.list("asv-ssj", null, null, null, null, null, null, null, null, null, null, 0, 25);
+        service.list("asv-ssj", null, null, null, null, null, null, null, null, 0, 25);
 
         org.mockito.Mockito.verify(client).searchIssues(captor.capture());
         SonarClient.IssueSearchParams params = captor.getValue();
@@ -59,24 +59,71 @@ class IssueServiceTest {
     }
 
     @Test
-    void listForwardsRawSonarFilters() {
+    void listAlwaysScopesSonarToProjectKey() {
         when(client.searchIssues(any())).thenReturn(emptyResponse());
         ArgumentCaptor<SonarClient.IssueSearchParams> captor =
                 ArgumentCaptor.forClass(SonarClient.IssueSearchParams.class);
 
-        service.list("asv-ssj", "asv-ssj:module", "src/main/java/ru/foo", "src/Foo.java",
-                null, null, "OPEN", null, null, null, null, 0, 25);
+        service.list("asv-ssj", null, null, null, "OPEN", null, null, null, null, 0, 25);
 
         org.mockito.Mockito.verify(client).searchIssues(captor.capture());
         SonarClient.IssueSearchParams params = captor.getValue();
-        assertThat(params.componentKeys()).isEqualTo("asv-ssj:module");
-        assertThat(params.directories()).isEqualTo("src/main/java/ru/foo");
-        assertThat(params.files()).isEqualTo("src/Foo.java");
+        assertThat(params.componentKeys()).isEqualTo("asv-ssj");
+        assertThat(params.directories()).isNull();
+        assertThat(params.files()).isNull();
+    }
+
+    @Test
+    void listFiltersByComponentPathPrefix() {
+        when(client.searchIssues(any())).thenReturn(issueResponse(
+                issue("K1", "java:S100", "asv-api:bc-smev/src/main/java/Foo.java"),
+                issue("K2", "java:S100", "asv-api:bc-smev/src/main/java/Bar.java"),
+                issue("K3", "java:S101", "asv-api:bc-loader/src/main/java/Baz.java")
+        ));
+
+        var page = service.list("asv-api", "bc-smev", null, null, null, null, null, null, null, 0, 25);
+
+        assertThat(page.total()).isEqualTo(2);
+        assertThat(page.items())
+                .extracting("key")
+                .containsExactly("K1", "K2");
+        assertThat(page.pathPrefixTruncated()).isFalse();
+    }
+
+    @Test
+    void listPrefixFilterHonoursDirectoryBoundary() {
+        when(client.searchIssues(any())).thenReturn(issueResponse(
+                issue("K1", "java:S100", "asv-api:bc-doc/src/Foo.java"),
+                issue("K2", "java:S100", "asv-api:bc-doc-extra/src/Bar.java")
+        ));
+
+        var page = service.list("asv-api", "bc-doc/src", null, null, null, null, null, null, null, 0, 25);
+
+        assertThat(page.items())
+                .extracting("key")
+                .containsExactly("K1");
+    }
+
+    @Test
+    void listPrefixFilterAppliesOffsetAndLimitToFilteredList() {
+        when(client.searchIssues(any())).thenReturn(issueResponse(
+                issue("K1", "java:S100", "asv-api:bc-smev/A.java"),
+                issue("K2", "java:S100", "asv-api:bc-smev/B.java"),
+                issue("K3", "java:S100", "asv-api:bc-smev/C.java"),
+                issue("K4", "java:S100", "asv-api:bc-loader/D.java")
+        ));
+
+        var page = service.list("asv-api", "bc-smev", null, null, null, null, null, null, null, 1, 1);
+
+        assertThat(page.total()).isEqualTo(3);
+        assertThat(page.items())
+                .extracting("key")
+                .containsExactly("K2");
     }
 
     @Test
     void listRequiresProjectKey() {
-        assertThatThrownBy(() -> service.list(null, null, null, null, null, null, null, null, null, null, null, 0, 25))
+        assertThatThrownBy(() -> service.list(null, null, null, null, null, null, null, null, null, 0, 25))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -113,7 +160,7 @@ class IssueServiceTest {
         ArgumentCaptor<SonarClient.IssueSearchParams> captor =
                 ArgumentCaptor.forClass(SonarClient.IssueSearchParams.class);
 
-        var summary = service.projectSummary("asv-api", null, null, null,
+        var summary = service.projectSummary("asv-api", null,
                 null, null, null, null, null, null, null);
 
         org.mockito.Mockito.verify(client).searchIssues(captor.capture());
@@ -121,6 +168,24 @@ class IssueServiceTest {
         assertThat(summary.byAuthor())
                 .extracting("value", "count")
                 .containsExactly(org.assertj.core.groups.Tuple.tuple("alice", 3));
+        assertThat(summary.pathPrefixTruncated()).isFalse();
+    }
+
+    @Test
+    void projectSummaryWithPrefixRecomputesFacetsFromScan() {
+        when(client.searchIssues(any())).thenReturn(issueResponse(
+                issue("K1", "java:S100", "asv-api:bc-smev/Foo.java"),
+                issue("K2", "java:S100", "asv-api:bc-smev/Bar.java"),
+                issue("K3", "java:S101", "asv-api:bc-loader/Baz.java")
+        ));
+
+        var summary = service.projectSummary("asv-api", "bc-smev",
+                null, null, null, null, null, null, null);
+
+        assertThat(summary.total()).isEqualTo(2);
+        assertThat(summary.byRule())
+                .extracting("value", "count")
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("java:S100", 2));
     }
 
     @Test
@@ -131,7 +196,7 @@ class IssueServiceTest {
                 issue("K3", "java:S101", "asv-api:bc-loader/src/main/java/Baz.java")
         ));
 
-        var breakdown = service.projectBreakdown("asv-api", null, null, null,
+        var breakdown = service.projectBreakdown("asv-api", null,
                 null, "CODE_SMELL", null, null, null, null, null);
 
         assertThat(breakdown.total()).isEqualTo(3);
@@ -154,7 +219,7 @@ class IssueServiceTest {
                 new ProjectBranch("feature/4421", false, "SHORT", false, "2026-05-20T17:12:31+0300", "OK", 0L, 0L, 0L)
         )));
 
-        var page = service.list("asv-api", null, null, null, null, null, null, null, null, null, null, 0, 25);
+        var page = service.list("asv-api", null, null, null, null, null, null, null, null, 0, 25);
 
         assertThat(page.branchAdvisory()).isNotNull();
         assertThat(page.branchAdvisory().effectiveBranch()).isEqualTo("main");
@@ -168,7 +233,7 @@ class IssueServiceTest {
     void listOmitsBranchAdvisoryWhenBranchPassedExplicitly() {
         when(client.searchIssues(any())).thenReturn(emptyResponse());
 
-        var page = service.list("asv-api", null, null, null, null, null, null, null,
+        var page = service.list("asv-api", null, null, null, null, null,
                 "feature/3608", null, null, 0, 25);
 
         assertThat(page.branchAdvisory()).isNull();
@@ -182,7 +247,7 @@ class IssueServiceTest {
                 new ProjectBranch("main", true, "LONG", true, "2026-05-21T20:00:00+0300", "OK", 0L, 0L, 0L)
         )));
 
-        var page = service.list("asv-api", null, null, null, null, null, null, null, null, null, null, 0, 25);
+        var page = service.list("asv-api", null, null, null, null, null, null, null, null, 0, 25);
 
         assertThat(page.branchAdvisory()).isNull();
     }
@@ -195,7 +260,7 @@ class IssueServiceTest {
                 new ProjectBranch("feature/3608", false, "SHORT", false, "2026-05-21T23:03:15+0300", "OK", 0L, 0L, 5L)
         )));
 
-        var summary = service.projectSummary("asv-api", null, null, null,
+        var summary = service.projectSummary("asv-api", null,
                 null, null, null, null, null, null, null);
 
         assertThat(summary.branchAdvisory()).isNotNull();
@@ -213,7 +278,7 @@ class IssueServiceTest {
                 new ProjectBranch("feature/3608", false, "SHORT", false, "2026-05-21T23:03:15+0300", "OK", 0L, 0L, 5L)
         )));
 
-        var breakdown = service.projectBreakdown("asv-api", null, null, null,
+        var breakdown = service.projectBreakdown("asv-api", null,
                 null, "CODE_SMELL", null, null, null, null, null);
 
         assertThat(breakdown.branchAdvisory()).isNotNull();

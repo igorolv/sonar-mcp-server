@@ -8,8 +8,6 @@ public record Hotspot(
         String key,
         @Schema(description = "Key of the project this hotspot belongs to.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         String projectKey,
-        @Schema(description = "Full component key in the form projectKey:path.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-        String componentKey,
         @Schema(description = "File or directory path within the project where the hotspot was found.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         String componentPath,
         @Schema(description = "Line number where the hotspot starts; null when the hotspot spans the whole file.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)

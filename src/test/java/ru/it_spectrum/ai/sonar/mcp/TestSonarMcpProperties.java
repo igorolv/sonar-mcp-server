@@ -7,6 +7,6 @@ public final class TestSonarMcpProperties {
     private TestSonarMcpProperties() {}
 
     public static SonarMcpProperties defaults() {
-        return new SonarMcpProperties(null, null, null);
+        return new SonarMcpProperties(null, null, null, null);
     }
 }

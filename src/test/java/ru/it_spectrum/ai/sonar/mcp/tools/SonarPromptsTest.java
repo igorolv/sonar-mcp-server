@@ -84,8 +84,8 @@ class SonarPromptsTest {
         String text = prompts.analyzePath("my-proj", "src/main/java/ru/foo", null, null);
         assertThat(text).contains("my-proj");
         assertThat(text).contains("src/main/java/ru/foo");
-        assertThat(text).contains("listComponents");
-        assertThat(text).contains("componentKeys");
+        assertThat(text).contains("componentPathPrefix");
+        assertThat(text).contains("pathPrefixTruncated");
         assertThat(text).contains("getProjectIssuesSummary");
         assertThat(text).contains("listHotspots");
         assertThat(text).contains("listIssues");
@@ -112,8 +112,8 @@ class SonarPromptsTest {
         String text = prompts.fixPath("src/main/java/ru/foo", "p", "BLOCKER,CRITICAL", null, null);
         assertThat(text).contains("src/main/java/ru/foo");
         assertThat(text).contains("BLOCKER,CRITICAL");
-        assertThat(text).contains("listComponents");
-        assertThat(text).contains("componentKeys");
+        assertThat(text).contains("componentPathPrefix");
+        assertThat(text).contains("pathPrefixTruncated");
         assertThat(text).contains("listIssues");
         assertThat(text).contains("getRule` once");
         assertThat(text).contains("### Cross-file impact");
@@ -135,10 +135,10 @@ class SonarPromptsTest {
     }
 
     @Test
-    void fixFileExplainsThatFilePathIsPassedAsFiles() {
+    void fixFileExplainsThatFilePathIsPassedAsComponentPathPrefix() {
         String text = prompts.fixFile("src/x/Y.java", null, null, null);
-        // Crucial detail: the tool param is files; an exact file path works.
-        assertThat(text).contains("files");
+        // Crucial detail: the tool param is componentPathPrefix; an exact file path works.
+        assertThat(text).contains("componentPathPrefix=src/x/Y.java");
         assertThat(text).contains("exact file path");
     }
 

@@ -48,14 +48,22 @@ public class HotspotTools {
     @McpTool(
             description = "List SonarQube Security Hotspots for a project. Hotspots are a separate category " +
             "from issues — they flag code that needs human security review. By default Sonar returns hotspots " +
-            "in TO_REVIEW status. Each item has rule, security category, vulnerability probability, file path, line, and message."
+            "in TO_REVIEW status. Each item has rule, security category, vulnerability probability, file path, line, and message. " +
+            "Use componentPathPrefix to scope to a subtree (see the parameter description)."
             + ToolDescriptions.BRANCH_NOTE,
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public HotspotPage listHotspots(
             @McpToolParam(description = "Sonar project key. Optional if SONAR_DEFAULT_PROJECT_KEY is configured on the server; otherwise required.", required = false) String projectKey,
-            @McpToolParam(description = "Raw Sonar files filter. Optional; comma-separated file paths.", required = false) String files,
+            @McpToolParam(description =
+                    "Restrict results to hotspots whose file path starts with this prefix (e.g. 'bc-doc/src/main' or "
+                    + "'bc-doc/src/main/java/ru/foo/Bar.java'). Relative to the Sonar project root. For Java/Kotlin "
+                    + "packages convert dots to slashes. Honours directory boundaries: 'bc-doc/src' matches 'bc-doc/src/x' "
+                    + "but not 'bc-doc/srcExtra/x'. Implemented as a client-side filter over a full project scan capped at "
+                    + "sonar-mcp.path-filter.max-scanned-issues (default 10000); if the cap is hit, pathPrefixTruncated=true "
+                    + "in the response.",
+                    required = false) String componentPathPrefix,
             @McpToolParam(description = "Status: TO_REVIEW or REVIEWED (optional, default TO_REVIEW)", required = false) String status,
             @McpToolParam(description = ToolDescriptions.BRANCH_PARAM, required = false) String branch,
             @McpToolParam(description = ToolDescriptions.PR_PARAM, required = false) String pullRequest,
@@ -64,12 +72,12 @@ public class HotspotTools {
     ) {
         String actualProjectKey = resolveProjectKey(projectKey);
         Ref ref = resolveRef(branch, pullRequest);
-        log.info("Tool call: listHotspots (projectKey={}, files={}, status={}, branch={}, pullRequest={}, limit={}, offset={})",
-                actualProjectKey, files, status, ref.branch(), ref.pullRequest(), limit, offset);
+        log.info("Tool call: listHotspots (projectKey={}, componentPathPrefix={}, status={}, branch={}, pullRequest={}, limit={}, offset={})",
+                actualProjectKey, componentPathPrefix, status, ref.branch(), ref.pullRequest(), limit, offset);
         long start = System.nanoTime();
         int actualLimit = limit != null ? limit : properties.pagination().defaultLimit();
         int actualOffset = offset != null ? offset : properties.pagination().defaultOffset();
-        HotspotPage result = hotspotService.list(actualProjectKey, files, status, ref.branch(), ref.pullRequest(),
+        HotspotPage result = hotspotService.list(actualProjectKey, componentPathPrefix, status, ref.branch(), ref.pullRequest(),
                 actualOffset, actualLimit);
         ToolLogger.completed(log, "listHotspots", start);
         return result;

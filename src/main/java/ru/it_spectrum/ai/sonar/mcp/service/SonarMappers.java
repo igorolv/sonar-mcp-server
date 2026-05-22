@@ -87,8 +87,7 @@ public final class SonarMappers {
     }
 
     public static Issue toIssue(SonarIssue src, Map<String, SonarComponent> componentsByKey) {
-        String componentKey = src.component();
-        String path = lookupPath(componentKey, componentsByKey);
+        String path = lookupPath(src.component(), componentsByKey);
         return new Issue(
                 src.key(),
                 src.rule(),
@@ -98,7 +97,6 @@ public final class SonarMappers {
                 src.resolution(),
                 src.message(),
                 src.project(),
-                componentKey,
                 path,
                 src.line(),
                 toTextRange(src.textRange()),
@@ -141,7 +139,6 @@ public final class SonarMappers {
         }
         return raw.stream()
                 .map(loc -> new IssueLocation(
-                        loc.component(),
                         lookupPath(loc.component(), componentsByKey),
                         toTextRange(loc.textRange()),
                         loc.msg()))
@@ -175,12 +172,11 @@ public final class SonarMappers {
         SonarComponent component = src.component();
         List<SnippetLine> lines = src.sources() == null ? List.of()
                 : src.sources().stream().map(SonarMappers::toSnippetLine).toList();
-        String key = component != null ? component.key() : null;
         String path = component != null && component.path() != null
                 ? component.path()
-                : componentPath(key);
+                : componentPath(component != null ? component.key() : null);
         String language = component != null ? component.language() : null;
-        return new SourceSnippet(key, path, language, lines);
+        return new SourceSnippet(path, language, lines);
     }
 
     public static SnippetLine toSnippetLine(SonarSnippetLine src) {
@@ -213,12 +209,10 @@ public final class SonarMappers {
     }
 
     public static Hotspot toHotspot(SonarHotspot src, Map<String, SonarComponent> componentsByKey) {
-        String componentKey = src.component();
         return new Hotspot(
                 src.key(),
                 src.project(),
-                componentKey,
-                lookupPath(componentKey, componentsByKey),
+                lookupPath(src.component(), componentsByKey),
                 src.line(),
                 src.message(),
                 src.status(),
@@ -236,7 +230,6 @@ public final class SonarMappers {
         Hotspot hotspot = new Hotspot(
                 src.key(),
                 src.project() != null ? src.project().key() : null,
-                src.component() != null ? src.component().key() : null,
                 src.component() != null && src.component().path() != null
                         ? src.component().path()
                         : componentPath(src.component() != null ? src.component().key() : null),

@@ -12,6 +12,10 @@ public record HotspotPage(
         @Schema(description = "Zero-based offset of this page within the full result set.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         int offset,
         @Schema(description = "Maximum number of items per page.", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-        int limit
+        int limit,
+        @Schema(description = "True when componentPathPrefix was supplied and the underlying scan hit the configured "
+                + "maximum hotspot count before exhausting Sonar. Tighten the prefix to see the rest.",
+                requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+        boolean pathPrefixTruncated
 ) {
 }

@@ -41,28 +41,18 @@ public class SonarPrompts {
                 you have confirmed it is the intended scope.""";
     }
 
-    private static String describeComponentTarget(String path) {
+    private static String describePathTarget(String path) {
         if (!present(path)) {
-            return "No component target was provided — analyse the whole project.";
+            return "No path target was provided — analyse the whole project.";
         }
-        return "Resolve target `%s` to Sonar component key(s) with `listComponents` before issue calls.".formatted(path);
+        return "Pass `componentPathPrefix=%s` to scoped issue/hotspot calls (convert Java package dots to slashes).".formatted(path);
     }
 
-    private static final String COMPONENT_SCOPE_NOTE = """
-            Component lookup discipline: `listIssues`, `getProjectIssuesSummary`, and `getProjectIssuesBreakdown` do not accept
-            friendly package/path filters. Use `listComponents` first when the user gives a module, directory, file, or package
-            instead of an exact Sonar component key. Treat returned `key` values as opaque and pass them unchanged as
-            `componentKeys`. For Java/Kotlin package names, convert dots to slashes and match returned `path` suffixes; never pass
-            package names directly as `componentKeys`.""";
-
-    private static final String FILE_SCOPE_NOTE = """
-            File scope discipline: for an exact file path, pass that path via the `files` parameter on `listIssues` and
-            `listHotspots`. Do not use `componentKeys` unless you already have the exact opaque key from `listComponents`.""";
-
-    private static final String HOTSPOT_SCOPE_NOTE = """
-            Hotspot scope discipline: `listHotspots` exposes only Sonar's native project scope and `files` filter. There is no
-            directory/module/package `path` filter. For directory or module targets, skip scoped hotspots instead of doing a
-            project-wide hotspot scan and presenting it as path-scoped.""";
+    private static final String PATH_PREFIX_NOTE = """
+            Path filter discipline: `listIssues`, `listHotspots`, `getProjectIssuesSummary`, and `getProjectIssuesBreakdown`
+            accept a single scoping parameter `componentPathPrefix` — a path relative to the Sonar project root. Convert Java/Kotlin
+            package names by replacing dots with slashes (`ru.foo.bar` -> `ru/foo/bar`). The filter is client-side; if the response
+            sets `pathPrefixTruncated=true`, the scan hit the configured cap before finishing — tighten the prefix and retry.""";
 
     private static final String RULE_REUSE_NOTE = """
             Rule lookup discipline: after listing issues, collect the SET of UNIQUE rule keys. Call `getRule` ONCE per unique key,
@@ -86,7 +76,7 @@ public class SonarPrompts {
         return """
                 You are sizing up SonarQube findings %s. Produce a compact situational report — no fixes yet, just shape and scale.
 
-                All tool names below (`listComponents`, `getProjectIssuesSummary`, `listHotspots`, `listIssues`) refer to the Sonar MCP server's tools;
+                All tool names below (`getProjectIssuesSummary`, `listHotspots`, `listIssues`) refer to the Sonar MCP server's tools;
                 your tool list shows them with a server-specific prefix (e.g. `mcp__<server>__getProjectIssuesSummary`) — map the short
                 names to that prefixed form.
 
@@ -98,26 +88,21 @@ public class SonarPrompts {
                 %s
 
                 Steps (perform in this order):
-                1. If a target path/package/module was provided, resolve it before issue calls:
-                   - If it already contains `:`, treat it as an exact Sonar component key and use it as `componentKeys`.
-                   - Otherwise call `listComponents`; for package names convert dots to slashes and match returned `path` suffixes.
-                   - If multiple unrelated components match, stop and ask the user which module/path to use. Do not scan the whole project.
-                   - If no component matches, stop and say the Sonar component could not be resolved.
-                2. Call `getProjectIssuesSummary` with the resolved `componentKeys` and branch/PR parameters above. This returns total open-issue count and per-facet
-                   `[{value, count}]` arrays for severity, type, status, rule, tag, and SCM author. This is your primary signal.
-                3. Call `listHotspots` once only when the target is the whole project or an exact file. For an exact file, pass its
-                   `path` as `files`. For a directory/module/package target, do not call `listHotspots`; report hotspots as
-                   "not checked for this scope" because the tool has no native recursive component filter.
-                4. If step 2 returned >0 issues, call `listIssues` ONCE with the same resolved `componentKeys`, limit=20, sorted naturally by Sonar
-                   (no extra filters), purely to learn which files are most affected. Group the returned `componentPath` values to
-                   produce a top-N file list. Do not paginate further — this is a brief.
-                5. Do NOT call `getIssue`, `getRule`, or `getIssueSnippets` here — that is `fix-path` / `investigate-issue` territory.
+                1. Call `getProjectIssuesSummary` with `componentPathPrefix=%s` (omit when no path target) and branch/PR parameters above.
+                   This returns total open-issue count and per-facet `[{value, count}]` arrays for severity, type, status, rule, tag, and
+                   SCM author. This is your primary signal. If the response sets `pathPrefixTruncated=true`, say so and stop — the scope
+                   is too broad and you need a tighter prefix.
+                2. Call `listHotspots` with `componentPathPrefix=%s` (omit when no path target) and the same branch/PR scope.
+                3. If step 1 returned >0 issues, call `listIssues` ONCE with the same `componentPathPrefix`, limit=20, sorted naturally
+                   by Sonar (no extra filters), purely to learn which files are most affected. Group the returned `componentPath`
+                   values to produce a top-N file list. Do not paginate further — this is a brief.
+                4. Do NOT call `getIssue`, `getRule`, or `getIssueSnippets` here — that is `fix-path` / `investigate-issue` territory.
 
                 After all calls, produce Markdown in EXACTLY this structure:
 
                 ## SonarQube analysis — <project / path label>
                 **Scope:** <projectKey>%s%s%s
-                **Open issues:** <total> | **Hotspots to review:** <count from step 3 or "not checked for this scope">
+                **Open issues:** <total> | **Hotspots to review:** <total from step 2>
 
                 ### Breakdown
                 - **Severity:** BLOCKER=<n>, CRITICAL=<n>, MAJOR=<n>, MINOR=<n>, INFO=<n>
@@ -128,11 +113,11 @@ public class SonarPrompts {
                 If one rule is >50%% of total, flag it explicitly with "**dominant** — fixing this single rule clears the bulk".>
 
                 ### Most-affected files
-                <Top 5-10 files derived from step 4's results, formatted as: `- componentPath (issue count from the sample)`.
-                Annotate "(sample only; widen with listIssues for full picture)" if step 2's total is much larger than 20.>
+                <Top 5-10 files derived from step 3's results, formatted as: `- componentPath (issue count from the sample)`.
+                Annotate "(sample only; widen with listIssues for full picture)" if step 1's total is much larger than 20.>
 
                 ### Security hotspots
-                <If not checked for this scope: "Not checked — listHotspots has no directory/module/package filter.". If 0: "None.". Otherwise: 1-2 sentences naming the top security categories from step 3, plus the count. No per-hotspot detail.>
+                <If 0: "None.". Otherwise: 1-2 sentences naming the top security categories from step 2, plus the count. No per-hotspot detail.>
 
                 ### Recommended next step
                 <One sentence: "run `fix-path` on <path>" if the workload looks contained to one path, or "run `fix-file` on <file>"
@@ -146,9 +131,11 @@ public class SonarPrompts {
                 """.formatted(
                         scopeLabel(path, branch, pullRequest),
                         describeProject(projectKey),
-                        describeComponentTarget(path),
+                        describePathTarget(path),
                         describeScope(branch, pullRequest),
-                        COMPONENT_SCOPE_NOTE + "\n\n" + HOTSPOT_SCOPE_NOTE,
+                        PATH_PREFIX_NOTE,
+                        present(path) ? path : "(omit)",
+                        present(path) ? path : "(omit)",
                         present(path) ? " | **Path:** `%s`".formatted(path) : "",
                         present(branch) ? " | **Branch:** `%s`".formatted(branch) : "",
                         present(pullRequest) ? " | **PR:** `%s`".formatted(pullRequest) : "");
@@ -174,12 +161,12 @@ public class SonarPrompts {
                 You are building a fix plan for SonarQube findings under `%s`. Output is an actionable plan grouped by file —
                 each line is something a developer (or you, acting as one) can execute.
 
-                All tool names below (`listComponents`, `listIssues`, `listHotspots`, `getRule`, `getIssueSnippets`) refer to the Sonar MCP server's tools;
+                All tool names below (`listIssues`, `listHotspots`, `getRule`, `getIssueSnippets`) refer to the Sonar MCP server's tools;
                 map the short names to the server-prefixed form your tool list shows.
 
                 Parameters resolved for this run:
                 - %s
-                - Target path/package/module: `%s`
+                - Target path/package: `%s` (convert Java package dots to slashes before passing)
                 - %s
                 - Severities filter: %s
 
@@ -187,40 +174,31 @@ public class SonarPrompts {
 
                 %s
 
-                %s
-
                 Steps (perform in this order):
 
-                1. Resolve `%s` to Sonar component key(s):
-                   - If it already contains `:`, treat it as an exact Sonar component key and use it as `componentKeys`.
-                   - Otherwise call `listComponents`; for package names convert dots to slashes and match returned `path` suffixes.
-                   - If multiple unrelated components match, stop and ask the user which module/path to use.
-                   - If no component matches, stop and say the Sonar component could not be resolved.
+                1. Page through `listIssues` with `componentPathPrefix=%s`%s and the scope parameters above until you have ALL
+                   matching open issues. Use limit=100 per page. Stop when a page returns fewer than `limit` items. Do NOT paginate
+                   past 10 pages — if there are >1000 issues in this scope, stop and tell the user the scope is too broad;
+                   recommend narrowing the prefix. If the response sets `pathPrefixTruncated=true`, stop and report it explicitly.
 
-                2. Page through `listIssues` with the resolved `componentKeys`%s and the scope parameters above until you have ALL open issues.
-                   Use limit=100 per page. Stop when a page returns fewer than `limit` items. Do NOT paginate past 10 pages — if
-                   there are >1000 issues in this component scope, stop and tell the user the scope is too broad; recommend narrowing.
+                2. Call `listHotspots` with `componentPathPrefix=%s` and the same branch/PR scope. Single page is usually enough.
 
-                3. Call `listHotspots` once only when the resolved target is an exact file. Pass its `path` as `files`.
-                   For directory/module/package targets, do not call `listHotspots`; report hotspots as "not checked for this scope"
-                   because the tool has no native recursive component filter.
-
-                4. From the issues you collected, build the SET of unique rule keys. For EACH unique key call `getRule` once.
+                3. From the issues you collected, build the SET of unique rule keys. For EACH unique key call `getRule` once.
                    These responses give you `howToFix`, `rootCause`, and severity context that drive the recommendations below.
 
-                5. Use `getIssueSnippets` SPARINGLY — only call it for an issue if EITHER:
-                   - the issue's `flows`/secondary locations point outside the resolved component scope (cross-file impact you must flag), OR
+                4. Use `getIssueSnippets` SPARINGLY — only call it for an issue if EITHER:
+                   - the issue's `flows`/secondary locations point outside the resolved path scope (cross-file impact you must flag), OR
                    - you cannot read the file locally for some reason.
                    Otherwise rely on reading the file directly with your filesystem tools — it's faster and gives full context.
 
-                6. Do NOT call `getIssue` per-issue. The list response already has enough fields (rule, severity, message, line,
+                5. Do NOT call `getIssue` per-issue. The list response already has enough fields (rule, severity, message, line,
                    textRange, flows). `getIssue` is for the `investigate-issue` workflow.
 
                 After all calls, produce Markdown in EXACTLY this structure:
 
                 ## Fix plan — `%s`
                 **Scope:** <projectKey>%s%s%s
-                **Issues:** <total open> | **Hotspots:** <count or "not checked for this scope"> | **Unique rules:** <count>
+                **Issues:** <total open> | **Hotspots:** <count> | **Unique rules:** <count>
 
                 ### Common fix patterns
                 <For each rule that appears >=3 times across the issues, ONE paragraph (2-4 sentences) distilling the rule's
@@ -235,29 +213,29 @@ public class SonarPrompts {
                 - **L<line>** — ...
 
                 ### Cross-file impact
-                <For each issue whose secondary flows pointed outside the resolved component scope (from step 5): name the issue, the file it
-                lives in, and the OTHER files its fix will touch. If none, write "None — all fixes are contained to this component scope.">
+                <For each issue whose secondary flows pointed outside the resolved path scope (from step 4): name the issue, the file it
+                lives in, and the OTHER files its fix will touch. If none, write "None — all fixes are contained to this path scope.">
 
                 ### Hotspots (review separately)
-                <If not checked for this scope: "Not checked — listHotspots has no directory/module/package filter.". If 0: "None.". Otherwise list as "- `componentPath:line` — <category> (rule:key)" up to 10 entries. Note that
+                <If 0: "None.". Otherwise list as "- `componentPath:line` — <category> (rule:key)" up to 10 entries. Note that
                 hotspots need human review, they are not auto-fixable.>
 
                 Rules:
                 - Recommendations must be concrete and code-actionable ("replace `==` with `.equals()` on line 42"), not paraphrases of the rule.
                 - Quote the rule's `howToFix` only where the exact wording matters; otherwise distill.
                 - Do not invent line numbers, paths, or rule keys — only use what came back from the tools.
-                - If pagination stopped at 1000 issues, say so prominently at the top of the report.
+                - If pagination stopped at 1000 issues OR `pathPrefixTruncated=true`, say so prominently at the top of the report.
                 """.formatted(
                         path,
                         describeProject(projectKey),
                         path,
                         describeScope(branch, pullRequest),
                         present(severities) ? "`" + severities + "`" : "(none — all severities)",
-                        COMPONENT_SCOPE_NOTE,
-                        HOTSPOT_SCOPE_NOTE,
+                        PATH_PREFIX_NOTE,
                         RULE_REUSE_NOTE,
                         path,
                         present(severities) ? ", severities=`" + severities + "`" : "",
+                        path,
                         path,
                         " | **Target:** `%s`".formatted(path),
                         present(branch) ? " | **Branch:** `%s`".formatted(branch) : "",
@@ -288,19 +266,18 @@ public class SonarPrompts {
 
                 Parameters resolved for this run:
                 - %s
-                - File: pass the exact file path as `files=%s` to `listIssues` / `listHotspots`.
+                - File: pass the exact file path as `componentPathPrefix=%s` to `listIssues` / `listHotspots`. The prefix filter
+                  matches exact-equality on file paths, so the file scope is naturally narrow.
                 - %s
-
-                %s
 
                 %s
 
                 Steps (perform in this order):
 
-                1. Call `listIssues` with files=`%s` and the scope above. limit=100, single page is normally enough for one file.
+                1. Call `listIssues` with `componentPathPrefix=%s` and the scope above. limit=100, single page is normally enough for one file.
                    If a second page is needed, paginate.
 
-                2. Call `listHotspots` with files=`%s` and the same branch/PR scope (single page).
+                2. Call `listHotspots` with `componentPathPrefix=%s` and the same branch/PR scope (single page).
 
                 3. From the issues, collect the SET of unique rule keys. Call `getRule` once per unique key.
 
@@ -346,7 +323,6 @@ public class SonarPrompts {
                         describeProject(projectKey),
                         filePath,
                         describeScope(branch, pullRequest),
-                        FILE_SCOPE_NOTE,
                         RULE_REUSE_NOTE,
                         filePath,
                         filePath,

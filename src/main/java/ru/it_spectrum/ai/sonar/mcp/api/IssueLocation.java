@@ -4,8 +4,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "A single point in an issue data-flow, identifying a file, a text range, and a description of what happens at this step.")
 public record IssueLocation(
-        @Schema(description = "Full component key in the form projectKey:path.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-        String componentKey,
         @Schema(description = "File path within the project.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         String componentPath,
         @Schema(description = "Precise text range in the source file.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
