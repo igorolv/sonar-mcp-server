@@ -11,7 +11,7 @@ public record RuleDetails(
         String repo,
         @Schema(description = "Human-readable rule name.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         String name,
-        @Schema(description = "Default severity: BLOCKER, CRITICAL, MAJOR, MINOR, or INFO.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+        @Schema(description = "Default severity. Standard mode: BLOCKER, CRITICAL, MAJOR, MINOR, INFO. MQR mode: BLOCKER, HIGH, MEDIUM, LOW, INFO.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         String severity,
         @Schema(description = "Rule type: BUG, VULNERABILITY, CODE_SMELL, or SECURITY_HOTSPOT.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         String type,

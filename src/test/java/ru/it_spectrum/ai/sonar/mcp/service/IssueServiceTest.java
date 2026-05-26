@@ -139,7 +139,7 @@ class IssueServiceTest {
         var issue = new SonarIssue("KEY1", "java:S100", "MAJOR",
                 "asv:src/Foo.java", "asv", 1, null, null, List.of(),
                 "OPEN", null, "msg", null, null, null, null,
-                List.of(), null, null, null, "BUG", "MAIN");
+                List.of(), null, null, null, "BUG", "MAIN", null);
         when(client.searchIssues(any())).thenReturn(new SonarIssuesResponse(
                 1, 1, 1, new SonarPaging(1, 1, 1), List.of(issue),
                 List.of(), List.of(), List.of()));
@@ -303,6 +303,6 @@ class IssueServiceTest {
         return new SonarIssue(key, rule, "MAJOR",
                 component, "asv-api", 1, null, null, List.of(),
                 "OPEN", null, "msg", null, null, null, null,
-                List.of("tag"), null, null, null, "CODE_SMELL", "MAIN");
+                List.of("tag"), null, null, null, "CODE_SMELL", "MAIN", null);
     }
 }

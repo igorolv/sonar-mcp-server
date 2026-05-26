@@ -8,9 +8,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
 import org.springframework.web.client.RestClient;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-
 @Configuration
 @EnableConfigurationProperties({SonarClientProperties.class, SonarMcpProperties.class})
 public class SonarConfig {
@@ -39,11 +36,7 @@ public class SonarConfig {
             log.error("SONAR_TOKEN is not set — Sonar requests will be sent without authorization and likely return 401");
         }
         if (token != null && !token.isBlank()) {
-            // SonarQube 9 user token: HTTP Basic with token as username and empty password.
-            String credentials = token + ":";
-            String encoded = Base64.getEncoder()
-                    .encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
-            builder.defaultHeader(HttpHeaders.AUTHORIZATION, "Basic " + encoded);
+            builder.defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + token);
         }
 
         String defaultProjectKey = properties.defaultProjectKey();

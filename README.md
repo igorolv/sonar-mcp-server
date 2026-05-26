@@ -1,20 +1,20 @@
 # Sonar MCP Server
 
-A local MCP server providing read-only access to a corporate SonarQube 9 via its web-api.
+A local MCP server providing read-only access to a SonarQube Community Build (26.4+) instance via its web-api.
 It lets AI agents (Claude Code, Cursor, VS Code Copilot, etc.) fetch a project's issue list, the files and locations where they occur, rule descriptions, source-code snippets around issues, and Security Hotspots.
 
 Typical scenario: "find and fix Sonar issues in such-and-such project" — the LLM calls `listIssues`, optionally `getRule` and `getIssueSnippets`, and edits files locally.
 
 ## Why this server
 
-There is an official SonarSource MCP server, but it targets SonarQube **10+** (and SonarCloud) and its web-api contract. Many corporate installations are still on **SonarQube 9** — and that's exactly what this server is built for. It speaks the v9 web-api directly, with no v10 assumptions baked in.
+There is an official SonarSource MCP server, but it targets SonarQube **10+** (and SonarCloud) and assumes a cloud-style deployment. This server is built for self-hosted **SonarQube Community Build 26.4+** installations that expose the classic `/api/` web-api. It supports both Standard Experience and MQR mode, handling per-software-quality impacts when the instance runs in MQR mode.
 
 It is also intentionally narrower in scope:
 
 - **Read-only by design.** The server never creates, updates, or deletes anything in SonarQube — no marking issues as false-positive, no editing comments, no admin endpoints. The token's write permissions in SonarQube are irrelevant because the server never calls those endpoints.
 - **Curated tool set.** Instead of mirroring the SonarQube API surface, the server exposes a small, focused set of tools (12 in total) chosen for a single workflow: *let an AI agent read Sonar's findings and fix the code based on them*. Listing components, issues and hotspots, drilling into a single finding, fetching the rule explanation, and pulling the source-code snippet around the location — and that's it. Anything outside this "diagnose -> fix the code locally" loop is deliberately left out to keep the tool list small and the agent's choices unambiguous.
 
-In short: a focused, read-only bridge from SonarQube 9 to an AI coding agent.
+In short: a focused, read-only bridge from a self-hosted SonarQube Community Build to an AI coding agent.
 
 ## Quick start
 
@@ -30,8 +30,8 @@ The server only supports the `stdio` transport.
 ```
 ┌─────────────┐     stdio      ┌──────────────────┐    web-api     ┌──────────┐
 │  AI agent   │ <------------> │  sonar-mcp-      │ -------------> │ SonarQube│
-│ (Claude Code│   stdin/stdout │  server (Java)   │  HTTP + Basic  │   v9     │
-│  Cursor...) │                │                  │  auth (token)  │          │
+│ (Claude Code│   stdin/stdout │  server (Java)   │  HTTP + Bearer  │  CB 26.4+│
+│  Cursor...) │                │                  │  auth (token)   │          │
 └─────────────┘                └──────────────────┘                └──────────┘
 ```
 
@@ -148,7 +148,7 @@ Open SonarQube in a browser and copy the address from the location bar **without
 
 > If a token is lost, you have to regenerate it — SonarQube doesn't display existing tokens again.
 
-The server uses HTTP Basic auth, passing the token as the username with an empty password — this is the standard SonarQube 9 scheme for user tokens.
+The server uses HTTP Bearer auth, passing the token in the `Authorization` header — this is the standard SonarQube Community Build scheme for user tokens.
 
 ## Running
 
@@ -230,10 +230,10 @@ echo "$SONAR_URL"
 test -n "$SONAR_TOKEN" && echo "SONAR_TOKEN is set"
 ```
 
-SonarQube web-api access check (HTTP Basic with the token as username and empty password):
+SonarQube web-api access check (HTTP Bearer auth with the token):
 
 ```bash
-curl -u "$SONAR_TOKEN:" "$SONAR_URL/api/components/search?qualifiers=TRK&p=1&ps=1"
+curl -H "Authorization: Bearer $SONAR_TOKEN" "$SONAR_URL/api/components/search?qualifiers=TRK&p=1&ps=1"
 ```
 
 The expected response is a JSON list of projects. `401 Unauthorized` means the token is invalid or expired; `403` means the user lacks permission for the API.
@@ -266,7 +266,7 @@ Integration tests require a reachable SonarQube and real data. Unit tests exclud
 ├── src/main/java/ru/it_spectrum/ai/sonar/mcp/
 │   ├── SonarMcpServerApplication.java   — Spring Boot entry point
 │   ├── api/                              — stable MCP wire format: records returned by tools/services
-│   │   ├── Issue.java, IssuePage.java, IssueDetails.java, IssueLocation.java, IssueFlow.java
+│   │   ├── Issue.java, IssuePage.java, IssueDetails.java, IssueLocation.java, IssueFlow.java, IssueImpact.java
 │   │   ├── Project.java, ProjectPage.java
 │   │   ├── RuleDetails.java, RuleSection.java
 │   │   ├── Hotspot.java, HotspotDetails.java, HotspotPage.java, HotspotRule.java
@@ -282,7 +282,7 @@ Integration tests require a reachable SonarQube and real data. Unit tests exclud
 │   ├── config/
 │   │   ├── SonarClientProperties.java   — url + token from env
 │   │   ├── SonarMcpProperties.java      — all sonar-mcp.* runtime settings
-│   │   ├── SonarConfig.java             — RestClient with Basic auth
+│   │   ├── SonarConfig.java             — RestClient with Bearer auth
 │   │   ├── McpServerConfig.java         — stdio MCP customizer with immediateExecution(true)
 │   │   └── JsonConfig.java              — ObjectMapper for MCP JSON
 │   ├── service/
@@ -308,7 +308,7 @@ Integration tests require a reachable SonarQube and real data. Unit tests exclud
 ## Troubleshooting
 
 - **"Gradle requires JVM 17 or later"** — set `JAVA_HOME` to a JDK 25+.
-- **Connection refused / 401** — check URL and token. Test: `curl -u "$SONAR_TOKEN:" "$SONAR_URL/api/components/search?qualifiers=TRK&p=1&ps=1"`.
+- **Connection refused / 401** — check URL and token. Test: `curl -H "Authorization: Bearer $SONAR_TOKEN" "$SONAR_URL/api/components/search?qualifiers=TRK&p=1&ps=1"`.
 - **403 Forbidden** — the token user has no rights on the project or on the web-api. Check the role in SonarQube.
 - **Package/module scope returns 0 issues** — pass the path-style prefix as `componentPathPrefix` (e.g. `bc-doc/src/main/java/ru/foo`), not a Sonar component key. Convert Java/Kotlin package dots to slashes. The filter is directory-boundary safe, so `bc-doc/src` will not match `bc-doc/srcExtra`.
 - **`pathPrefixTruncated=true` in the response** — the client-side scan hit `SONAR_MCP_PATH_FILTER_MAX_SCANNED_ISSUES` before reaching the end. Tighten the prefix to reduce the scan, or raise the cap if 10k is genuinely not enough for your project.

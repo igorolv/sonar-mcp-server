@@ -38,7 +38,7 @@ class SonarMappersTest {
                                 new SonarTextRange(10, 11, 0, 5), "secondary")))),
                 "OPEN", null, "msg", "5min", "5min", null, "alice",
                 List.of("design"), "2026-01-01", "2026-02-01", null,
-                "BUG", "MAIN");
+                "BUG", "MAIN", null);
 
         var component = new SonarComponent("asv:src/main/java/Foo.java", "Foo.java",
                 "Foo.java", "FIL", "src/main/java/Foo.java", "java", "asv", true);

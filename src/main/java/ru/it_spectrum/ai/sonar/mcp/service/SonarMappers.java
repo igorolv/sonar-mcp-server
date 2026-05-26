@@ -8,6 +8,7 @@ import ru.it_spectrum.ai.sonar.mcp.api.HotspotDetails;
 import ru.it_spectrum.ai.sonar.mcp.api.HotspotRule;
 import ru.it_spectrum.ai.sonar.mcp.api.Issue;
 import ru.it_spectrum.ai.sonar.mcp.api.IssueFlow;
+import ru.it_spectrum.ai.sonar.mcp.api.IssueImpact;
 import ru.it_spectrum.ai.sonar.mcp.api.IssueLocation;
 import ru.it_spectrum.ai.sonar.mcp.api.Project;
 import ru.it_spectrum.ai.sonar.mcp.api.ProjectBranch;
@@ -27,6 +28,7 @@ import ru.it_spectrum.ai.sonar.mcp.client.model.SonarFacet;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarHotspot;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarHotspotDetails;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarHotspotRule;
+import ru.it_spectrum.ai.sonar.mcp.client.model.SonarImpact;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarIssue;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarIssueFlow;
 import ru.it_spectrum.ai.sonar.mcp.client.model.SonarIssueLocation;
@@ -101,6 +103,7 @@ public final class SonarMappers {
                 src.line(),
                 toTextRange(src.textRange()),
                 toFlows(src.flows(), componentsByKey),
+                toImpacts(src.impacts()),
                 src.effort(),
                 src.debt(),
                 src.assignee(),
@@ -142,6 +145,15 @@ public final class SonarMappers {
                         lookupPath(loc.component(), componentsByKey),
                         toTextRange(loc.textRange()),
                         loc.msg()))
+                .toList();
+    }
+
+    public static List<IssueImpact> toImpacts(List<SonarImpact> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return List.of();
+        }
+        return raw.stream()
+                .map(i -> new IssueImpact(i.softwareQuality(), i.severity()))
                 .toList();
     }
 

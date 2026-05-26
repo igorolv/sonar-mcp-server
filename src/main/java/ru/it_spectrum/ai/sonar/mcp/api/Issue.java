@@ -9,7 +9,7 @@ public record Issue(
         String key,
         @Schema(description = "Key of the rule that flagged this issue.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         String rule,
-        @Schema(description = "Severity level: BLOCKER, CRITICAL, MAJOR, MINOR, or INFO.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+        @Schema(description = "Severity level. Standard mode: BLOCKER, CRITICAL, MAJOR, MINOR, INFO. MQR mode: BLOCKER, HIGH, MEDIUM, LOW, INFO. In MQR mode prefer the per-quality severities from the impacts array.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         String severity,
         @Schema(description = "Issue type: BUG, VULNERABILITY, or CODE_SMELL.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         String type,
@@ -29,6 +29,8 @@ public record Issue(
         TextRange textRange,
         @Schema(description = "Data-flow paths showing how a problematic value propagates through the code.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         List<IssueFlow> flows,
+        @Schema(description = "MQR impacts: per-software-quality severities. Present when the SonarQube instance runs in MQR mode.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
+        List<IssueImpact> impacts,
         @Schema(description = "Estimated effort to fix this issue, as a duration string (e.g. '5min', '1h').", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         String effort,
         @Schema(description = "Estimated technical debt, as a duration string (e.g. '30min', '2h').", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)

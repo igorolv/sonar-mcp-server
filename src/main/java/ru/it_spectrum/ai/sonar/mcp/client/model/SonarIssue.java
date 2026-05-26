@@ -27,6 +27,7 @@ public record SonarIssue(
         String updateDate,
         String closeDate,
         String type,
-        String scope
+        String scope,
+        List<SonarImpact> impacts
 ) {
 }
