@@ -10,6 +10,7 @@ import ru.it_spectrum.ai.sonar.mcp.api.Issue;
 import ru.it_spectrum.ai.sonar.mcp.api.IssueFlow;
 import ru.it_spectrum.ai.sonar.mcp.api.IssueImpact;
 import ru.it_spectrum.ai.sonar.mcp.api.IssueLocation;
+import ru.it_spectrum.ai.sonar.mcp.api.Opaque;
 import ru.it_spectrum.ai.sonar.mcp.api.Project;
 import ru.it_spectrum.ai.sonar.mcp.api.ProjectBranch;
 import ru.it_spectrum.ai.sonar.mcp.api.ProjectComponent;
@@ -216,7 +217,7 @@ public final class SonarMappers {
                 src.lang(),
                 src.langName(),
                 src.tags(),
-                sections,
+                sections.stream().map(Opaque::of).toList(),
                 src.htmlDesc());
     }
 
@@ -258,8 +259,8 @@ public final class SonarMappers {
                 src.updateDate());
         HotspotRule rule = src.rule() == null ? null : toHotspotRule(src.rule());
         List<IssueFlow> flows = toFlows(src.flows(), null);
-        List<ChangelogEntry> changelog = src.changelog() == null ? List.of()
-                : src.changelog().stream().map(SonarMappers::toChangelogEntry).toList();
+        List<Opaque<ChangelogEntry>> changelog = src.changelog() == null ? List.of()
+                : src.changelog().stream().map(SonarMappers::toChangelogEntry).map(Opaque::of).toList();
         return new HotspotDetails(hotspot, rule, toTextRange(src.textRange()), flows, changelog);
     }
 

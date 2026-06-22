@@ -205,7 +205,7 @@ class IssueServiceTest {
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple("bc-smev", 2),
                         org.assertj.core.groups.Tuple.tuple("bc-loader", 1));
-        assertThat(breakdown.modules().get(0).byRule())
+        assertThat(breakdown.modules().get(0).unwrap().byRule())
                 .extracting("value", "count")
                 .containsExactly(org.assertj.core.groups.Tuple.tuple("java:S100", 2));
     }

@@ -4,11 +4,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import ru.it_spectrum.ai.sonar.mcp.api.RuleDetails;
 import ru.it_spectrum.ai.sonar.mcp.service.RuleService;
 
 @Service
+@ConditionalOnProperty(prefix = "sonar-mcp.tools", name = "rule", havingValue = "true", matchIfMissing = true)
 public class RuleTools {
 
     private static final Logger log = LoggerFactory.getLogger(RuleTools.class);

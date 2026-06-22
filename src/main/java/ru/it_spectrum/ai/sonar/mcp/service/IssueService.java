@@ -10,6 +10,7 @@ import ru.it_spectrum.ai.sonar.mcp.api.Issue;
 import ru.it_spectrum.ai.sonar.mcp.api.IssueDetails;
 import ru.it_spectrum.ai.sonar.mcp.api.IssuePage;
 import ru.it_spectrum.ai.sonar.mcp.api.ModuleIssuesSummary;
+import ru.it_spectrum.ai.sonar.mcp.api.Opaque;
 import ru.it_spectrum.ai.sonar.mcp.api.ProjectBranch;
 import ru.it_spectrum.ai.sonar.mcp.api.ProjectBranches;
 import ru.it_spectrum.ai.sonar.mcp.api.ProjectIssuesBreakdown;
@@ -88,9 +89,9 @@ public class IssueService {
         Issue issue = SonarMappers.toIssue(response.issues().get(0), componentsByKey);
 
         SonarChangelogResponse changelog = client.getIssueChangelog(issueKey);
-        List<ChangelogEntry> entries = changelog == null || changelog.changelog() == null
+        List<Opaque<ChangelogEntry>> entries = changelog == null || changelog.changelog() == null
                 ? List.of()
-                : changelog.changelog().stream().map(SonarMappers::toChangelogEntry).toList();
+                : changelog.changelog().stream().map(SonarMappers::toChangelogEntry).map(Opaque::of).toList();
         return new IssueDetails(issue, entries);
     }
 
@@ -177,7 +178,7 @@ public class IssueService {
                         .map(m -> new FacetCount(m.module(), m.total()))
                         .toList(),
                 facet(issues, Issue::rule),
-                modules,
+                modules.stream().map(Opaque::of).toList(),
                 advisoryFor(projectKey, branch, pullRequest),
                 scan.truncated());
     }

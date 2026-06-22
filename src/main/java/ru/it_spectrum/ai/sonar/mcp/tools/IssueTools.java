@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import ru.it_spectrum.ai.sonar.mcp.api.IssueDetails;
 import ru.it_spectrum.ai.sonar.mcp.api.IssuePage;
@@ -17,6 +18,7 @@ import ru.it_spectrum.ai.sonar.mcp.service.SnippetService;
 import ru.it_spectrum.ai.sonar.mcp.tools.RefResolver.Ref;
 
 @Service
+@ConditionalOnProperty(prefix = "sonar-mcp.tools", name = "issue", havingValue = "true", matchIfMissing = true)
 public class IssueTools {
 
     private static final Logger log = LoggerFactory.getLogger(IssueTools.class);
@@ -78,15 +80,15 @@ public class IssueTools {
     public IssuePage listIssues(
             @McpToolParam(description = ToolDescriptions.PROJECT_KEY_PARAM, required = false) String projectKey,
             @McpToolParam(description = PATH_PREFIX_PARAM, required = false) String componentPathPrefix,
-            @McpToolParam(description = "Severities: comma-separated, any of INFO,MINOR,MAJOR,CRITICAL,BLOCKER (optional)", required = false) String severities,
-            @McpToolParam(description = "Types: comma-separated, any of CODE_SMELL,BUG,VULNERABILITY (optional)", required = false) String types,
-            @McpToolParam(description = "Statuses: comma-separated, any of OPEN,CONFIRMED,REOPENED,RESOLVED,CLOSED (optional). If both statuses and resolved are omitted, returns only open issues.", required = false) String statuses,
-            @McpToolParam(description = "Rule keys: comma-separated (e.g. 'java:S1234,javascript:S5678') (optional)", required = false) String rules,
+            @McpToolParam(description = ToolDescriptions.SEVERITIES_PARAM, required = false) String severities,
+            @McpToolParam(description = ToolDescriptions.TYPES_PARAM, required = false) String types,
+            @McpToolParam(description = ToolDescriptions.STATUSES_PARAM, required = false) String statuses,
+            @McpToolParam(description = ToolDescriptions.RULES_PARAM, required = false) String rules,
             @McpToolParam(description = ToolDescriptions.BRANCH_PARAM, required = false) String branch,
             @McpToolParam(description = ToolDescriptions.PR_PARAM, required = false) String pullRequest,
-            @McpToolParam(description = "Filter by resolved state: true / false (optional). When omitted with no statuses, defaults to false (open issues).", required = false) Boolean resolved,
-            @McpToolParam(description = "Maximum number of results per page. If omitted, the server applies its default page size (Sonar caps at 500).", required = false) Integer limit,
-            @McpToolParam(description = "Offset for pagination, default 0. Internally rounded down to a page boundary.", required = false) Integer offset
+            @McpToolParam(description = ToolDescriptions.RESOLVED_PARAM, required = false) Boolean resolved,
+            @McpToolParam(description = ToolDescriptions.LIMIT_PARAM, required = false) Integer limit,
+            @McpToolParam(description = ToolDescriptions.OFFSET_PARAM, required = false) Integer offset
     ) {
         String actualProjectKey = resolveProjectKey(projectKey);
         Ref ref = resolveRef(branch, pullRequest);
@@ -149,13 +151,13 @@ public class IssueTools {
     public ProjectIssuesSummary getProjectIssuesSummary(
             @McpToolParam(description = ToolDescriptions.PROJECT_KEY_PARAM, required = false) String projectKey,
             @McpToolParam(description = PATH_PREFIX_PARAM, required = false) String componentPathPrefix,
-            @McpToolParam(description = "Severities: comma-separated, any of INFO,MINOR,MAJOR,CRITICAL,BLOCKER (optional)", required = false) String severities,
-            @McpToolParam(description = "Types: comma-separated, any of CODE_SMELL,BUG,VULNERABILITY (optional)", required = false) String types,
-            @McpToolParam(description = "Statuses: comma-separated, any of OPEN,CONFIRMED,REOPENED,RESOLVED,CLOSED (optional). If both statuses and resolved are omitted, returns only open issues.", required = false) String statuses,
-            @McpToolParam(description = "Rule keys: comma-separated (e.g. 'java:S1234,javascript:S5678') (optional)", required = false) String rules,
+            @McpToolParam(description = ToolDescriptions.SEVERITIES_PARAM, required = false) String severities,
+            @McpToolParam(description = ToolDescriptions.TYPES_PARAM, required = false) String types,
+            @McpToolParam(description = ToolDescriptions.STATUSES_PARAM, required = false) String statuses,
+            @McpToolParam(description = ToolDescriptions.RULES_PARAM, required = false) String rules,
             @McpToolParam(description = ToolDescriptions.BRANCH_PARAM, required = false) String branch,
             @McpToolParam(description = ToolDescriptions.PR_PARAM, required = false) String pullRequest,
-            @McpToolParam(description = "Filter by resolved state: true / false (optional). When omitted with no statuses, defaults to false (open issues).", required = false) Boolean resolved
+            @McpToolParam(description = ToolDescriptions.RESOLVED_PARAM, required = false) Boolean resolved
     ) {
         String actualProjectKey = resolveProjectKey(projectKey);
         Ref ref = resolveRef(branch, pullRequest);
@@ -178,13 +180,13 @@ public class IssueTools {
     public ProjectIssuesBreakdown getProjectIssuesBreakdown(
             @McpToolParam(description = ToolDescriptions.PROJECT_KEY_PARAM, required = false) String projectKey,
             @McpToolParam(description = PATH_PREFIX_PARAM, required = false) String componentPathPrefix,
-            @McpToolParam(description = "Severities: comma-separated, any of INFO,MINOR,MAJOR,CRITICAL,BLOCKER (optional)", required = false) String severities,
-            @McpToolParam(description = "Types: comma-separated, any of CODE_SMELL,BUG,VULNERABILITY (optional)", required = false) String types,
-            @McpToolParam(description = "Statuses: comma-separated, any of OPEN,CONFIRMED,REOPENED,RESOLVED,CLOSED (optional). If both statuses and resolved are omitted, returns only open issues.", required = false) String statuses,
-            @McpToolParam(description = "Rule keys: comma-separated (e.g. 'java:S1234,javascript:S5678') (optional)", required = false) String rules,
+            @McpToolParam(description = ToolDescriptions.SEVERITIES_PARAM, required = false) String severities,
+            @McpToolParam(description = ToolDescriptions.TYPES_PARAM, required = false) String types,
+            @McpToolParam(description = ToolDescriptions.STATUSES_PARAM, required = false) String statuses,
+            @McpToolParam(description = ToolDescriptions.RULES_PARAM, required = false) String rules,
             @McpToolParam(description = ToolDescriptions.BRANCH_PARAM, required = false) String branch,
             @McpToolParam(description = ToolDescriptions.PR_PARAM, required = false) String pullRequest,
-            @McpToolParam(description = "Filter by resolved state: true / false (optional). When omitted with no statuses, defaults to false (open issues).", required = false) Boolean resolved
+            @McpToolParam(description = ToolDescriptions.RESOLVED_PARAM, required = false) Boolean resolved
     ) {
         String actualProjectKey = resolveProjectKey(projectKey);
         Ref ref = resolveRef(branch, pullRequest);

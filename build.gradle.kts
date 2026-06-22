@@ -14,14 +14,12 @@ java {
 
 repositories {
     mavenCentral()
-    maven { url = uri("https://repo.spring.io/milestone") }
 }
 
 dependencies {
     implementation(libs.spring.boot.starter)
     implementation(libs.spring.ai.mcp.server)
     implementation("org.springframework:spring-web")
-    implementation("com.fasterxml.jackson.core:jackson-databind")
     implementation(libs.swagger.annotations.jakarta)
 
     testImplementation(libs.spring.boot.starter.test)

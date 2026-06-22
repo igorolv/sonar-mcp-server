@@ -8,6 +8,6 @@ public record IssueDetails(
         @Schema(description = "The issue itself.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         Issue issue,
         @Schema(description = "Full change history of the issue (transitions, assignments, severity changes, etc.).", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-        List<ChangelogEntry> changelog
+        List<Opaque<ChangelogEntry>> changelog
 ) {
 }

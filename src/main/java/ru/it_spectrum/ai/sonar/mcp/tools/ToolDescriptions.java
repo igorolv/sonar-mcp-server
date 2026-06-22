@@ -48,4 +48,18 @@ final class ToolDescriptions {
      * carry a server-side `branchAdvisory` when the call ran against main by default. Tells the agent to react to it.
      */
     static final String BRANCH_ADVISORY_NOTE = " RESPONSE WATCH: when both `branch` and `pullRequest` are omitted AND the project has other branches analysed in Sonar, the response carries a `branchAdvisory` field with the main branch name and the list of available non-main branches sorted by analysisDate. If you see it, stop and reconsider scope — pick the branch matching the user's local git and retry with `branch=` set instead of acting on main-branch data.";
+
+    // Recurring issue-filter parameters. Deduplicated onto one canonical phrasing each so the same
+    // wording reaches the LLM from every issue/hotspot tool. The `required = false` flag already
+    // signals optionality, so the literal "(optional)" marker is dropped from the text.
+    static final String SEVERITIES_PARAM = "Severities: comma-separated, any of INFO,MINOR,MAJOR,CRITICAL,BLOCKER.";
+    static final String TYPES_PARAM = "Types: comma-separated, any of CODE_SMELL,BUG,VULNERABILITY.";
+    static final String STATUSES_PARAM = "Statuses: comma-separated, any of OPEN,CONFIRMED,REOPENED,RESOLVED,CLOSED. If both statuses and resolved are omitted, returns only open issues.";
+    static final String RULES_PARAM = "Rule keys: comma-separated, e.g. 'java:S1234,javascript:S5678'.";
+    static final String RESOLVED_PARAM = "Filter by resolved state: true / false. When omitted with no statuses, defaults to false (open issues).";
+
+    /** Canonical pagination parameter descriptions. The configured default/cap are enforced in code,
+     *  not user-facing knobs, so that prose is omitted. */
+    static final String LIMIT_PARAM = "Maximum number of results per page; the server applies its default when omitted.";
+    static final String OFFSET_PARAM = "Pagination offset (default 0).";
 }

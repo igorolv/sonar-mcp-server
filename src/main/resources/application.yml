@@ -11,6 +11,15 @@ spring:
 
 sonar-mcp:
   data-dir: ${SONAR_MCP_DATA_DIR:${user.home}/.sonar-mcp-server}
+  # Which tool groups are exposed in the MCP tools/list manifest. All groups are on by default;
+  # turn a group off (e.g. SONAR_MCP_TOOLS_HOTSPOT=false) to shrink the manifest for small-context
+  # (local) models that would otherwise be flooded with tool and output schemas at session start.
+  # Each flag toggles one @Service tool class.
+  tools:
+    issue: ${SONAR_MCP_TOOLS_ISSUE:true}         # listIssues/getIssue/getIssueSnippets/getProjectIssuesSummary/getProjectIssuesBreakdown
+    project: ${SONAR_MCP_TOOLS_PROJECT:true}     # listProjects/listComponents/getProject/listProjectBranches/listProjectPullRequests
+    hotspot: ${SONAR_MCP_TOOLS_HOTSPOT:true}     # listHotspots/getHotspot
+    rule: ${SONAR_MCP_TOOLS_RULE:true}           # getRule
   pagination:
     default-limit: ${SONAR_MCP_PAGINATION_DEFAULT_LIMIT:50}
     default-offset: ${SONAR_MCP_PAGINATION_DEFAULT_OFFSET:0}

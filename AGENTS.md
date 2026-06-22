@@ -33,9 +33,14 @@ Core invariants — never break these without an explicit conversation:
 ## 2. Tech stack and exact versions
 
 - **Java 25** toolchain (`build.gradle.kts` pins `JavaLanguageVersion.of(25)`).
-- **Spring Boot 4** + **Spring AI MCP server** (stdio transport) — version aliases in
+- **Spring Boot 4** + **Spring AI MCP server** (stdio transport, 2.0.0 GA) — version aliases in
   `gradle/libs.versions.toml`.
-- Jackson Databind for JSON; ObjectMapper configured with `NON_NULL` inclusion (`JsonConfig`).
+- **Jackson 3** (`tools.jackson`, pulled in transitively by the MCP starter) for JSON. `JsonConfig`
+  builds a `tools.jackson` `JsonMapper` with `NON_NULL` inclusion and `SORT_PROPERTIES_ALPHABETICALLY`
+  disabled (it is ON by default in J3 — disabling preserves key order). Jackson **annotations**
+  (`@JsonProperty`, `@JsonInclude`, `@JsonValue`, `@JsonIgnoreProperties`) stay in
+  `com.fasterxml.jackson.annotation` (shared by J2/J3). There is no explicit `jackson-databind`
+  dependency — do not add one back.
 - **Gradle 9.x** with version catalog (`libs.versions.toml`).
 
 If you change a dependency, update `libs.versions.toml`, not the build script.
@@ -115,6 +120,21 @@ directly from a tool — go through a service. Never return a `client.model.*` t
   `BRANCH_PARAM_FOR_KEY_LOOKUP`) so the message stays consistent across tools. The same applies
   to `@McpPrompt` instructions — when the branch/PR arg is empty, the prompt must tell the agent
   to verify the scope, not "do not pass branch".
+- **Tool groups.** Each `@Service` tool class is gated by
+  `@ConditionalOnProperty(prefix = "sonar-mcp.tools", name = "<group>", havingValue = "true", matchIfMissing = true)`
+  — groups `issue`, `project`, `hotspot`, `rule`. All on by default (manifest unchanged out of the
+  box); operators disable a group via `SONAR_MCP_TOOLS_<GROUP>=false` to shrink the `tools/list`
+  manifest for small-context models. A new tool class must carry one of these annotations and be
+  listed in `application.yml` under `sonar-mcp.tools` and in `ToolGroupConditionTest`.
+- **Output-schema weight.** The advertised `outputSchema` is loaded into the model context whenever a
+  client forwards it. Keep `@Schema` field text lean: no `example = ...`, no descriptions that merely
+  restate the field name. A field may be `nullable = true` **or** `requiredMode = REQUIRED`, never
+  both — `OutputSchemaSmokeTest` lints the source for that combination. For the heaviest nested
+  element types whose typed schema is not worth its bytes, wrap the field in `Opaque<T>` (use
+  `List<Opaque<T>>` for collections, never `Opaque<List<T>>`): the wire output is byte-identical, but
+  the element schema collapses to `{"type":"object"}`. Apply `Opaque.of(...)` at the mapper/service
+  construction site; only output-only DTOs returned as-is are eligible. See `Opaque` javadoc and
+  `OpaqueTest`.
 
 ---
 
@@ -125,7 +145,8 @@ directly from a tool — go through a service. Never return a `client.model.*` t
 | A new SonarQube endpoint call | `SonarClient` + a raw DTO in `client/model/` |
 | A public response type | `api/` as a `record` |
 | Business logic | `service/`, mapping raw -> api in `SonarMappers` |
-| A new MCP tool | `tools/`, `@Service` class, `@McpTool` method, return a record from `api/` |
+| A new MCP tool | `tools/`, `@Service` class (with a `sonar-mcp.tools.*` `@ConditionalOnProperty`), `@McpTool` method, return a record from `api/` |
+| A new tool group toggle | `@ConditionalOnProperty` on the class + `application.yml` `sonar-mcp.tools` entry + `ToolGroupConditionTest` |
 | Env var or runtime tunable | `SonarMcpProperties` (nested record) + `application.yml` entry |
 
 ---

@@ -24,7 +24,7 @@ public record RuleDetails(
         @Schema(description = "Tags categorising the rule (e.g. 'performance', 'java8', 'owasp-a1').", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         List<String> tags,
         @Schema(description = "Structured description broken into sections (rationale, non-compliant code, compliant code, etc.).", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-        List<RuleSection> descriptionSections,
+        List<Opaque<RuleSection>> descriptionSections,
         @Schema(description = "Full rule description as raw HTML (including code examples and formatting).", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         String htmlDescription
 ) {

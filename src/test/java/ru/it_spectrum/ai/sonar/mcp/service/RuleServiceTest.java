@@ -36,7 +36,7 @@ class RuleServiceTest {
         assertThat(rule.key()).isEqualTo("java:S1234");
         assertThat(rule.severity()).isEqualTo("MAJOR");
         assertThat(rule.descriptionSections()).singleElement()
-                .satisfies(s -> assertThat(s.key()).isEqualTo("root_cause"));
+                .satisfies(s -> assertThat(s.unwrap().key()).isEqualTo("root_cause"));
     }
 
     @Test

@@ -8,6 +8,6 @@ public record IssueSnippets(
         @Schema(description = "Key of the issue these snippets belong to.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         String issueKey,
         @Schema(description = "One or more source code snippets showing the issue location and surrounding lines.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-        List<SourceSnippet> snippets
+        List<Opaque<SourceSnippet>> snippets
 ) {
 }

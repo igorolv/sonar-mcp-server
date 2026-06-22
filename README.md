@@ -126,6 +126,19 @@ The server needs a SonarQube URL and token; the rest is optional.
 | `SONAR_MCP_SNIPPET_MAX_LINES` | Reserved for future per-snippet line cap; currently unused (Sonar picks the window itself). Defaults to `50` |
 | `SONAR_MCP_PATH_FILTER_MAX_SCANNED_ISSUES` | Hard cap on issues/hotspots scanned client-side when `componentPathPrefix` is set; defaults to `10000`. If the cap is hit, the response carries `pathPrefixTruncated=true`. |
 
+### Tool groups
+
+The MCP `tools/list` manifest is split into four groups, each gated by an environment flag. All groups are **on by default**, so the out-of-the-box manifest is unchanged. Turn a group off to shrink the manifest — useful for small-context (local) models that would otherwise be flooded with tool and output schemas at session start.
+
+| Variable | Tools in the group |
+|---|---|
+| `SONAR_MCP_TOOLS_ISSUE` | `listIssues`, `getIssue`, `getIssueSnippets`, `getProjectIssuesSummary`, `getProjectIssuesBreakdown` |
+| `SONAR_MCP_TOOLS_PROJECT` | `listProjects`, `listComponents`, `getProject`, `listProjectBranches`, `listProjectPullRequests` |
+| `SONAR_MCP_TOOLS_HOTSPOT` | `listHotspots`, `getHotspot` |
+| `SONAR_MCP_TOOLS_RULE` | `getRule` |
+
+Set a flag to `false` (e.g. `SONAR_MCP_TOOLS_HOTSPOT=false`) to drop that group's tools from the manifest.
+
 ### Getting the SonarQube URL
 
 Open SonarQube in a browser and copy the address from the location bar **without** the path — only scheme and host.

@@ -1,6 +1,6 @@
 [versions]
 spring-boot = "4.0.0"
-spring-ai = "2.0.0-M6"
+spring-ai = "2.0.0"
 swagger-annotations = "2.2.28"
 
 [plugins]

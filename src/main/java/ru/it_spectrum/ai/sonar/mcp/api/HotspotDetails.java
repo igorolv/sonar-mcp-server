@@ -14,6 +14,6 @@ public record HotspotDetails(
         @Schema(description = "Data-flow paths showing how user input reaches the risky code.", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
         List<IssueFlow> flows,
         @Schema(description = "Full change history of the hotspot (reviews, reassignments, etc.).", nullable = true, requiredMode = Schema.RequiredMode.NOT_REQUIRED)
-        List<ChangelogEntry> changelog
+        List<Opaque<ChangelogEntry>> changelog
 ) {
 }

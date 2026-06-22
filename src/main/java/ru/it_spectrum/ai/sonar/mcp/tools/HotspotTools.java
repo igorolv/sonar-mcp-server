@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.mcp.annotation.McpTool;
 import org.springframework.ai.mcp.annotation.McpToolParam;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import ru.it_spectrum.ai.sonar.mcp.api.HotspotDetails;
 import ru.it_spectrum.ai.sonar.mcp.api.HotspotPage;
@@ -13,6 +14,7 @@ import ru.it_spectrum.ai.sonar.mcp.service.HotspotService;
 import ru.it_spectrum.ai.sonar.mcp.tools.RefResolver.Ref;
 
 @Service
+@ConditionalOnProperty(prefix = "sonar-mcp.tools", name = "hotspot", havingValue = "true", matchIfMissing = true)
 public class HotspotTools {
 
     private static final Logger log = LoggerFactory.getLogger(HotspotTools.class);
@@ -72,8 +74,8 @@ public class HotspotTools {
             @McpToolParam(description = "Status: TO_REVIEW or REVIEWED (optional, default TO_REVIEW)", required = false) String status,
             @McpToolParam(description = ToolDescriptions.BRANCH_PARAM, required = false) String branch,
             @McpToolParam(description = ToolDescriptions.PR_PARAM, required = false) String pullRequest,
-            @McpToolParam(description = "Maximum number of results per page. If omitted, the server applies its default page size.", required = false) Integer limit,
-            @McpToolParam(description = "Offset for pagination, default 0", required = false) Integer offset
+            @McpToolParam(description = ToolDescriptions.LIMIT_PARAM, required = false) Integer limit,
+            @McpToolParam(description = ToolDescriptions.OFFSET_PARAM, required = false) Integer offset
     ) {
         String actualProjectKey = resolveProjectKey(projectKey);
         Ref ref = resolveRef(branch, pullRequest);
