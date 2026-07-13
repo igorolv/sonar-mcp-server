@@ -50,14 +50,13 @@ public class ProjectTools {
     }
 
     @McpTool(
-            description = "List SonarQube projects, optionally filtered by a name substring. " +
-            "Returns project key, display name, and qualifier. Use the project key as projectKey " +
-            "argument for other Sonar tools.",
+            description = "List projects, optionally filtered by name. Returns key, name, and qualifier; use the key "
+            + "as `projectKey` in other tools.",
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public ProjectPage listProjects(
-            @McpToolParam(description = "Project name substring filter (optional)", required = false) String query,
+            @McpToolParam(description = "Project name substring", required = false) String query,
             @McpToolParam(description = ToolDescriptions.LIMIT_PARAM, required = false) Integer limit,
             @McpToolParam(description = ToolDescriptions.OFFSET_PARAM, required = false) Integer offset
     ) {
@@ -69,25 +68,18 @@ public class ProjectTools {
     }
 
     @McpTool(
-            description = "Discover the path layout of a SonarQube project's analysed files. Browses or searches Sonar's " +
-            "component tree and returns, for each component, its `path` (Sonar componentPath), name, qualifier " +
-            "(TRK / DIR / FIL / module-like), and language. " +
-            "USE THIS BEFORE any tool that takes `componentPathPrefix` (listIssues, listHotspots, " +
-            "getProjectIssuesSummary, getProjectIssuesBreakdown) whenever you do not already know the project's exact " +
-            "Sonar path layout. The Sonar componentPath often differs from the path in the source repository — build " +
-            "setups can drop or collapse segments (e.g. a Gradle module at `apps/foo/backend/` may be analysed simply " +
-            "as `foo/` in Sonar), so guessing from the repo layout silently returns 0 results. " +
-            "Typical discovery flow: call with `qualifiers=DIR` to enumerate analysed directories, or with " +
-            "`query=<substring>` to locate a specific module by name; then take the returned `path` value and pass it " +
-            "verbatim as `componentPathPrefix` on issue/hotspot tools."
+            description = "Browse or search a project's analysed component tree. Use returned `path` values as "
+            + "`componentPathPrefix`; Sonar paths may differ from repository paths. Returns component key, path, name, "
+            + "qualifier, and language. Use `qualifiers=DIR` to discover directories."
             + ToolDescriptions.BRANCH_NOTE,
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public ProjectComponentPage listComponents(
             @McpToolParam(description = ToolDescriptions.PROJECT_KEY_PARAM, required = false) String projectKey,
-            @McpToolParam(description = "Optional substring filter applied by Sonar to component names/paths. Useful with `qualifiers=DIR` to locate a specific directory or module by name.", required = false) String query,
-            @McpToolParam(description = "Optional comma-separated Sonar component qualifiers, for example `DIR,FIL`. Use `DIR` when discovering the directory layout for `componentPathPrefix`. Omit when unsure; the returned `qualifier` field labels each component type.", required = false) String qualifiers,
+            @McpToolParam(description = "Component name/path substring", required = false) String query,
+            @McpToolParam(description = "Comma-separated component types, e.g. `DIR,FIL`; use `DIR` for path discovery.",
+                    required = false) String qualifiers,
             @McpToolParam(description = ToolDescriptions.BRANCH_PARAM, required = false) String branch,
             @McpToolParam(description = ToolDescriptions.PR_PARAM, required = false) String pullRequest,
             @McpToolParam(description = ToolDescriptions.LIMIT_PARAM, required = false) Integer limit,
@@ -105,11 +97,8 @@ public class ProjectTools {
     }
 
     @McpTool(
-            description = "Get a SonarQube project overview: header info (name, qualifier, visibility, description, " +
-            "version, last analysis date), quality gate status with failed conditions, and a curated set of metrics " +
-            "(ncloc, bugs, vulnerabilities, security hotspots, code smells, coverage, duplications, technical debt in minutes, " +
-            "alert status). Useful as the first call to understand the shape and health of a project before drilling into issues. " +
-            "Supports branch/pullRequest to scope metrics and gate status to a specific Sonar analysis."
+            description = "Get one project analysis. Returns project metadata, quality gate failures, and metrics for "
+            + "size, findings, coverage, duplication, and technical debt."
             + ToolDescriptions.BRANCH_NOTE,
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
@@ -128,10 +117,8 @@ public class ProjectTools {
     }
 
     @McpTool(
-            description = "List Sonar branches analysed for a project. Each branch carries its name, isMain flag, " +
-            "type (LONG/SHORT/BRANCH), excludedFromPurge, last analysis date, quality gate status, and counts of bugs, " +
-            "vulnerabilities and code smells. Use this to discover available branches before scoping other tools with " +
-            "`branch=`. No pagination — Sonar returns all branches at once.",
+            description = "List analysed project branches. Returns name, main/type flags, analysis date, quality gate, "
+            + "and issue counts; use the name as `branch` in other tools.",
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
@@ -145,11 +132,9 @@ public class ProjectTools {
     }
 
     @McpTool(
-            description = "List Sonar pull request analyses for a project. Each entry has the PR key (use it as " +
-            "`pullRequest=` in other tools), title, source branch, base branch, URL, last analysis date, quality gate " +
-            "status, and counts of bugs, vulnerabilities and code smells. PR analyses are independent from branch " +
-            "analyses in Sonar — for in-flight PR work this is usually the more relevant data. " +
-            "Returns an empty list if the Sonar installation has no DevOps integration (GitHub/GitLab/Bitbucket) configured.",
+            description = "List project PR analyses. Returns key, title, source/base branches, URL, analysis date, "
+            + "quality gate, and issue counts; use the key as `pullRequest` in other tools. Returns empty when DevOps "
+            + "integration is unavailable.",
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )

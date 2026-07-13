@@ -22,14 +22,13 @@ public class RuleTools {
     }
 
     @McpTool(
-            description = "Get details of a SonarQube rule by key (e.g. 'java:S1234'): title, severity, type, " +
-            "language, tags, and structured description sections (introduction, root cause, how to fix, resources). " +
-            "Cached in-memory after first lookup. Use this to understand WHY a Sonar issue is reported and HOW to fix it.",
+            description = "Get a Sonar rule. Returns title, severity, type, language, tags, and structured explanation "
+            + "and fix sections.",
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public RuleDetails getRule(
-            @McpToolParam(description = "Rule key, e.g. 'java:S1234', 'javascript:S5678'") String ruleKey
+            @McpToolParam(description = "Rule key, e.g. `java:S1234`") String ruleKey
     ) {
         log.info("Tool call: getRule (ruleKey={})", ruleKey);
         return ToolLogger.run(log, "getRule", () -> ruleService.get(ruleKey));

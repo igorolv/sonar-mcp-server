@@ -47,31 +47,16 @@ public class HotspotTools {
     }
 
     @McpTool(
-            description = "List SonarQube Security Hotspots for a project. Hotspots are a separate category " +
-            "from issues — they flag code that needs human security review. By default Sonar returns hotspots " +
-            "in TO_REVIEW status. Each item has rule, security category, vulnerability probability, file path, line, and message. " +
-            "Use componentPathPrefix to scope to a subtree (see the parameter description)."
+            description = "List project Security Hotspots that need human review. Defaults to `TO_REVIEW`; supports "
+            + "path and ref filters. Returns rule/category, vulnerability probability, message, and file location."
             + ToolDescriptions.BRANCH_NOTE,
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public HotspotPage listHotspots(
             @McpToolParam(description = ToolDescriptions.PROJECT_KEY_PARAM, required = false) String projectKey,
-            @McpToolParam(description =
-                    "Restrict results to hotspots whose file path starts with this prefix (e.g. 'bc-doc/src/main' or "
-                    + "'bc-doc/src/main/java/ru/foo/Bar.java'). Relative to the Sonar project root. For Java/Kotlin "
-                    + "packages convert dots to slashes. Honours directory boundaries: 'bc-doc/src' matches 'bc-doc/src/x' "
-                    + "but not 'bc-doc/srcExtra/x'. "
-                    + "This must match Sonar's componentPath, which often differs from the path in the source repository — "
-                    + "the project's build setup may drop or collapse segments. If unsure of the exact layout, FIRST call "
-                    + "`listComponents` (with `qualifiers=DIR` or `query=<substring>`) and use the returned `path` value. "
-                    + "A 0-result response with `pathPrefixTruncated=false` typically means the prefix does not match any "
-                    + "analysed file. "
-                    + "Implemented as a client-side filter over a full project scan with a configured cap (default 10000 "
-                    + "issues scanned). If the cap is hit, `pathPrefixTruncated=true` in the response — tighten the prefix "
-                    + "and retry.",
-                    required = false) String componentPathPrefix,
-            @McpToolParam(description = "Status: TO_REVIEW or REVIEWED (optional, default TO_REVIEW)", required = false) String status,
+            @McpToolParam(description = ToolDescriptions.COMPONENT_PATH_PREFIX_PARAM, required = false) String componentPathPrefix,
+            @McpToolParam(description = "`TO_REVIEW` or `REVIEWED`; default `TO_REVIEW`", required = false) String status,
             @McpToolParam(description = ToolDescriptions.BRANCH_PARAM, required = false) String branch,
             @McpToolParam(description = ToolDescriptions.PR_PARAM, required = false) String pullRequest,
             @McpToolParam(description = ToolDescriptions.LIMIT_PARAM, required = false) Integer limit,
@@ -89,13 +74,13 @@ public class HotspotTools {
     }
 
     @McpTool(
-            description = "Get detailed information about a Security Hotspot: full rule description with risk, " +
-            "vulnerability and fix-recommendations sections, primary textRange, secondary flows, and changelog.",
+            description = "Get one Security Hotspot. Returns review details, rule guidance, locations, flows, and "
+            + "changelog.",
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public HotspotDetails getHotspot(
-            @McpToolParam(description = "Sonar hotspot key") String hotspotKey
+            @McpToolParam(description = "Hotspot key") String hotspotKey
     ) {
         log.info("Tool call: getHotspot (hotspotKey={})", hotspotKey);
         return ToolLogger.run(log, "getHotspot", () ->

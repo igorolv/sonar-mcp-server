@@ -23,20 +23,6 @@ public class IssueTools {
 
     private static final Logger log = LoggerFactory.getLogger(IssueTools.class);
 
-    private static final String PATH_PREFIX_PARAM =
-            "Restrict results to issues whose file path starts with this prefix (e.g. 'bc-doc/src/main' or "
-            + "'bc-doc/src/main/java/ru/foo/Bar.java'). Path is relative to the Sonar project root. For Java/Kotlin "
-            + "packages convert dots to slashes ('ru.foo.bar' -> 'ru/foo/bar'). Match honours directory boundaries: "
-            + "prefix 'bc-doc/src' matches 'bc-doc/src/x' but not 'bc-doc/srcExtra/x'. "
-            + "This must match Sonar's componentPath, which often differs from the path in the source repository — "
-            + "the project's build setup may drop or collapse segments (a Gradle module at apps/foo/backend/ may be "
-            + "analysed as foo/ in Sonar). If unsure of the exact layout, FIRST call `listComponents` (with "
-            + "`qualifiers=DIR` or `query=<substring>`) and use the returned `path` value — that is the authoritative "
-            + "componentPath. A 0-result response with `pathPrefixTruncated=false` typically means the prefix does not "
-            + "match any analysed file. "
-            + "Implemented as a client-side filter over a full project scan with a configured cap (default 10000 "
-            + "issues scanned). If the cap is hit, `pathPrefixTruncated=true` in the response — tighten the prefix and retry.";
-
     private final IssueService issueService;
     private final SnippetService snippetService;
     private final SonarMcpProperties properties;
@@ -67,11 +53,9 @@ public class IssueTools {
     }
 
     @McpTool(
-            description = "List SonarQube issues for a project. Each item includes rule, severity, type, " +
-            "status, message, file path (componentPath), line, primary textRange, and secondary flows " +
-            "for cross-file rules. By default only open issues (resolved=false, statuses OPEN/CONFIRMED/REOPENED). " +
-            "Use componentPathPrefix to scope the query to a module, directory, file, or Java package " +
-            "(see the parameter description). severities, types, statuses, rules accept comma-separated lists."
+            description = "List project issues with optional severity, type, status, rule, path, and ref filters. "
+            + "Returns rule, severity, type, status, message, file location/text range, and cross-file flows. "
+            + "Defaults to open issues."
             + ToolDescriptions.BRANCH_NOTE
             + ToolDescriptions.BRANCH_ADVISORY_NOTE,
             generateOutputSchema = true,
@@ -79,7 +63,7 @@ public class IssueTools {
     )
     public IssuePage listIssues(
             @McpToolParam(description = ToolDescriptions.PROJECT_KEY_PARAM, required = false) String projectKey,
-            @McpToolParam(description = PATH_PREFIX_PARAM, required = false) String componentPathPrefix,
+            @McpToolParam(description = ToolDescriptions.COMPONENT_PATH_PREFIX_PARAM, required = false) String componentPathPrefix,
             @McpToolParam(description = ToolDescriptions.SEVERITIES_PARAM, required = false) String severities,
             @McpToolParam(description = ToolDescriptions.TYPES_PARAM, required = false) String types,
             @McpToolParam(description = ToolDescriptions.STATUSES_PARAM, required = false) String statuses,
@@ -103,13 +87,14 @@ public class IssueTools {
     }
 
     @McpTool(
-            description = "Get detailed information about a single SonarQube issue by its key, " +
-            "including changelog (status changes, assignment history, transitions). Sonar issue keys can exist on multiple branches with different content — when the user is on a feature branch, pass the matching `branch=` (discover via `listProjectBranches`) so the lookup hits the right analysis.",
+            description = "Get one issue by key. Returns full issue details and changelog, including status and "
+            + "assignment history."
+            + ToolDescriptions.BRANCH_NOTE,
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public IssueDetails getIssue(
-            @McpToolParam(description = "Sonar issue key (e.g. 'AXabc123...')") String issueKey,
+            @McpToolParam(description = "Issue key") String issueKey,
             @McpToolParam(description = ToolDescriptions.BRANCH_PARAM_FOR_KEY_LOOKUP, required = false) String branch,
             @McpToolParam(description = ToolDescriptions.PR_PARAM, required = false) String pullRequest
     ) {
@@ -120,15 +105,15 @@ public class IssueTools {
     }
 
     @McpTool(
-            description = "Get source code snippets around all locations of a Sonar issue (primary location plus flow steps for cross-file rules). " +
-            "Each snippet has the file's componentPath, language, and an array of lines with code and SCM info. " +
-            "Useful when the local repo is not available or you want to see exactly the code Sonar analysed. " +
-            "When the issue lives on a non-main branch whose files differ from main, the `branch=` (or `pullRequest=`) argument is REQUIRED — without it Sonar returns snippets from the main-branch version of the file.",
+            description = "Get Sonar-analysed source snippets for all issue locations, including cross-file flows. "
+            + "Returns component path, language, code lines, and SCM metadata. Use when local source is unavailable "
+            + "or may differ from the analysed ref."
+            + ToolDescriptions.BRANCH_NOTE,
             generateOutputSchema = true,
             annotations = @McpTool.McpAnnotations(readOnlyHint = true, destructiveHint = false, idempotentHint = true)
     )
     public IssueSnippets getIssueSnippets(
-            @McpToolParam(description = "Sonar issue key") String issueKey,
+            @McpToolParam(description = "Issue key") String issueKey,
             @McpToolParam(description = ToolDescriptions.BRANCH_PARAM_FOR_KEY_LOOKUP, required = false) String branch,
             @McpToolParam(description = ToolDescriptions.PR_PARAM, required = false) String pullRequest
     ) {
@@ -139,10 +124,8 @@ public class IssueTools {
     }
 
     @McpTool(
-            description = "Aggregate counts of open Sonar issues in a project, grouped by severity, type, status, rule, tag, and SCM author. " +
-            "Useful as the first call to understand the shape of remaining work. Use componentPathPrefix to scope " +
-            "the query to a subtree (see the parameter description). " +
-            "Returns a single total and per-facet [{value, count}] arrays."
+            description = "Count project issues and group them by severity, type, status, rule, tag, and SCM author. "
+            + "Returns the total and facet counts; use before listing details."
             + ToolDescriptions.BRANCH_NOTE
             + ToolDescriptions.BRANCH_ADVISORY_NOTE,
             generateOutputSchema = true,
@@ -150,7 +133,7 @@ public class IssueTools {
     )
     public ProjectIssuesSummary getProjectIssuesSummary(
             @McpToolParam(description = ToolDescriptions.PROJECT_KEY_PARAM, required = false) String projectKey,
-            @McpToolParam(description = PATH_PREFIX_PARAM, required = false) String componentPathPrefix,
+            @McpToolParam(description = ToolDescriptions.ISSUE_AGGREGATE_PATH_PREFIX_PARAM, required = false) String componentPathPrefix,
             @McpToolParam(description = ToolDescriptions.SEVERITIES_PARAM, required = false) String severities,
             @McpToolParam(description = ToolDescriptions.TYPES_PARAM, required = false) String types,
             @McpToolParam(description = ToolDescriptions.STATUSES_PARAM, required = false) String statuses,
@@ -169,9 +152,9 @@ public class IssueTools {
     }
 
     @McpTool(
-            description = "Aggregate SonarQube issues by logical module and rule. This is intended for multi-module projects: " +
-            "module is derived from the first componentPath segment. Use componentPathPrefix to scope the query to a subtree " +
-            "(see the parameter description)."
+            description = "Count project issues by logical module and rule; intended for multi-module projects. "
+            + "A module is the first `componentPath` segment. Returns totals, module/rule facets, and per-module "
+            + "severity/type summaries."
             + ToolDescriptions.BRANCH_NOTE
             + ToolDescriptions.BRANCH_ADVISORY_NOTE,
             generateOutputSchema = true,
@@ -179,7 +162,7 @@ public class IssueTools {
     )
     public ProjectIssuesBreakdown getProjectIssuesBreakdown(
             @McpToolParam(description = ToolDescriptions.PROJECT_KEY_PARAM, required = false) String projectKey,
-            @McpToolParam(description = PATH_PREFIX_PARAM, required = false) String componentPathPrefix,
+            @McpToolParam(description = ToolDescriptions.ISSUE_AGGREGATE_PATH_PREFIX_PARAM, required = false) String componentPathPrefix,
             @McpToolParam(description = ToolDescriptions.SEVERITIES_PARAM, required = false) String severities,
             @McpToolParam(description = ToolDescriptions.TYPES_PARAM, required = false) String types,
             @McpToolParam(description = ToolDescriptions.STATUSES_PARAM, required = false) String statuses,
