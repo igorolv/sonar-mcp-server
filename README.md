@@ -12,7 +12,7 @@ There is an official SonarSource MCP server, but it targets SonarQube **10+** (a
 It is also intentionally narrower in scope:
 
 - **Read-only by design.** The server never creates, updates, or deletes anything in SonarQube — no marking issues as false-positive, no editing comments, no admin endpoints. The token's write permissions in SonarQube are irrelevant because the server never calls those endpoints.
-- **Curated tool set.** Instead of mirroring the SonarQube API surface, the server exposes a small, focused set of tools (12 in total) chosen for a single workflow: *let an AI agent read Sonar's findings and fix the code based on them*. Listing components, issues and hotspots, drilling into a single finding, fetching the rule explanation, and pulling the source-code snippet around the location — and that's it. Anything outside this "diagnose -> fix the code locally" loop is deliberately left out to keep the tool list small and the agent's choices unambiguous.
+- **Curated tool set.** Instead of mirroring the SonarQube API surface, the server exposes a small, focused set of tools (13 in total) chosen for a single workflow: *let an AI agent read Sonar's findings and fix the code based on them*. Listing components, issues and hotspots, drilling into a single finding, fetching the rule explanation, and pulling the source-code snippet around the location — and that's it. Anything outside this "diagnose -> fix the code locally" loop is deliberately left out to keep the tool list small and the agent's choices unambiguous.
 
 In short: a focused, read-only bridge from a self-hosted SonarQube Community Build to an AI coding agent.
 
@@ -40,7 +40,7 @@ The server does not open any HTTP port and accepts no incoming connections.
 
 ## Tools
 
-The server exports **12 read-only MCP tools**.
+The server exports **13 read-only MCP tools**.
 
 ### Projects
 
@@ -92,8 +92,8 @@ Passing both `branch` and `pullRequest` to the same tool call is an error. Use `
 
 ## Stack
 
-- Java 25, Spring Boot 4.0.0, Spring AI MCP 2.0.0-M6 (stdio transport)
-- Jackson Databind for JSON
+- Java 25, Spring Boot 4.0.0, Spring AI MCP 2.0.0 (stdio transport)
+- Jackson 3 (`tools.jackson`) for JSON
 - Gradle 9.3.1 with version catalog (`gradle/libs.versions.toml`)
 
 ## Build
@@ -279,15 +279,17 @@ Integration tests require a reachable SonarQube and real data. Unit tests exclud
 ├── src/main/java/ru/it_spectrum/ai/sonar/mcp/
 │   ├── SonarMcpServerApplication.java   — Spring Boot entry point
 │   ├── api/                              — stable MCP wire format: records returned by tools/services
-│   │   ├── Issue.java, IssuePage.java, IssueDetails.java, IssueLocation.java, IssueFlow.java, IssueImpact.java
-│   │   ├── Project.java, ProjectPage.java
+│   │   ├── Issue.java, IssuePage.java, IssueDetails.java, IssueLocation.java, IssueFlow.java, IssueImpact.java, IssueSnippets.java
+│   │   ├── Project.java, ProjectPage.java, ProjectOverview.java, ProjectMetrics.java, ProjectComponent.java, ProjectComponentPage.java
 │   │   ├── RuleDetails.java, RuleSection.java
 │   │   ├── Hotspot.java, HotspotDetails.java, HotspotPage.java, HotspotRule.java
-│   │   ├── SourceSnippet.java, SnippetLine.java, IssueSnippets.java
+│   │   ├── SourceSnippet.java, SnippetLine.java
 │   │   ├── ChangelogEntry.java, ChangelogDiff.java
-│   │   ├── TextRange.java, FacetCount.java
-│   │   ├── ProjectIssuesSummary.java, ProjectIssuesBreakdown.java
-│   │   └── ModuleIssuesSummary.java
+│   │   ├── TextRange.java, FacetCount.java, BranchAdvisory.java
+│   │   ├── ProjectIssuesSummary.java, ProjectIssuesBreakdown.java, ModuleIssuesSummary.java
+│   │   ├── ProjectBranch.java, ProjectBranches.java, ProjectPullRequest.java, ProjectPullRequests.java
+│   │   ├── QualityGateStatus.java, QualityGateCondition.java
+│   │   └── Opaque.java
 │   ├── client/
 │   │   ├── SonarClient.java              — SonarQube web-api wrapper
 │   │   └── model/                        — raw DTOs of the SonarQube web-api, not exposed directly via MCP
@@ -311,6 +313,8 @@ Integration tests require a reachable SonarQube and real data. Unit tests exclud
 │       ├── IssueTools.java              — 5 MCP tools
 │       ├── RuleTools.java               — 1 MCP tool
 │       ├── HotspotTools.java            — 2 MCP tools
+│       ├── ToolDescriptions.java        — shared @McpTool / @McpToolParam description constants
+│       ├── SonarPrompts.java            — MCP prompts (analyzePath, fixPath, fixFile, investigateIssue, reviewPullRequest)
 │       ├── RefResolver.java             — branch/pullRequest resolution with default-branch fallback
 │       └── ToolLogger.java
 └── src/main/resources/

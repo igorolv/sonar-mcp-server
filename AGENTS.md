@@ -11,7 +11,7 @@ Read this file before changing code.
 
 ## 1. What this project is
 
-A local **MCP (Model Context Protocol) server** that exposes a SonarQube 9 instance to AI clients
+A local **MCP (Model Context Protocol) server** that exposes a SonarQube Community Build 26.4+ instance to AI clients
 (Claude Code, Cursor, VS Code Copilot, Qwen Code, …) over **stdio**. It is **read-only**: it never
 creates, updates, or deletes anything in SonarQube.
 
@@ -75,7 +75,7 @@ tools/      @Service classes with @McpTool methods. Thin: log, default paginatio
 service/    Business logic. Validate inputs, orchestrate one or more client calls, map raw -> api/*.
 api/        Stable wire format (records). Returned by tools and services.
 client/     SonarClient (RestClient wrapper) + client/model/* (raw SonarQube DTOs).
-config/     Spring config: RestClient with Basic auth, MCP customizer, properties, Jackson.
+config/     Spring config: RestClient with Bearer auth, MCP customizer, properties, Jackson.
 ```
 
 Direction of dependencies is one-way: `tools` -> `service` -> `client`. Never call the client
@@ -85,8 +85,16 @@ directly from a tool — go through a service. Never return a `client.model.*` t
 
 ## 5. Conventions
 
-- **Authentication.** SonarQube 9 user tokens are sent as HTTP Basic auth with token as username
-  and empty password. `SonarConfig` builds the `Authorization: Basic base64(token:)` header.
+- **Authentication.** SonarQube Community Build 26.4+ user tokens are sent as HTTP Bearer auth:
+  the token goes in the `Authorization` header verbatim. `SonarConfig` builds the
+  `Authorization: Bearer <token>` header.
+- **HTTP transport.** `SonarConfig` builds the `RestClient` without a custom
+  `ClientHttpRequestFactory`, so `connectTimeout`/`readTimeout` and any retry policy are currently
+  **not configured** — a hung or flaky SonarQube can block a tool call indefinitely and rely on the
+  JVM's defaults. This is a known limitation (see README). Do not assume timeouts endure when adding
+  new `SonarClient` endpoints; if resilience is needed, introduce a `sonar-mcp.http.*` settings block
+  (`connect-timeout-ms`, `read-timeout-ms`, `max-retries`) in `SonarMcpProperties` + `application.yml`
+  and wire it into the `sonarRestClient` bean rather than hard-coding values.
 - **Pagination.** External API is `offset`/`limit`. Internally we convert to Sonar's `p`/`ps` via
   `PaginationHelper.toPage`. If `offset` is not a multiple of `limit`, Sonar returns the page
   containing it (we round down).
@@ -129,12 +137,12 @@ directly from a tool — go through a service. Never return a `client.model.*` t
 - **Output-schema weight.** The advertised `outputSchema` is loaded into the model context whenever a
   client forwards it. Keep `@Schema` field text lean: no `example = ...`, no descriptions that merely
   restate the field name. A field may be `nullable = true` **or** `requiredMode = REQUIRED`, never
-  both — `OutputSchemaSmokeTest` lints the source for that combination. For the heaviest nested
-  element types whose typed schema is not worth its bytes, wrap the field in `Opaque<T>` (use
-  `List<Opaque<T>>` for collections, never `Opaque<List<T>>`): the wire output is byte-identical, but
-  the element schema collapses to `{"type":"object"}`. Apply `Opaque.of(...)` at the mapper/service
-  construction site; only output-only DTOs returned as-is are eligible. See `Opaque` javadoc and
-  `OpaqueTest`.
+  both — enforce this in a unit test that scans the `api/*` sources for that combination. For the
+  heaviest nested element types whose typed schema is not worth its bytes, wrap the field in
+  `Opaque<T>` (use `List<Opaque<T>>` for collections, never `Opaque<List<T>>`): the wire output is
+  byte-identical, but the element schema collapses to `{"type":"object"}`. Apply `Opaque.of(...)` at the
+  mapper/service construction site; only output-only DTOs returned as-is are eligible. See the `Opaque`
+  javadoc.
 
 ---
 
