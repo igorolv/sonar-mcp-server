@@ -5,6 +5,7 @@
 [![License](https://img.shields.io/github/license/igorolv/sonar-mcp-server)](LICENSE)
 [![Java 25](https://img.shields.io/badge/Java-25%2B-blue?logo=openjdk)](https://adoptium.net/)
 [![MCP](https://img.shields.io/badge/MCP-server-8A2BE2)](https://modelcontextprotocol.io/)
+[![Glama score](https://glama.ai/mcp/servers/igorolv/sonar-mcp-server/badges/score.svg)](https://glama.ai/mcp/servers/igorolv/sonar-mcp-server)
 
 A local MCP server providing read-only access to a SonarQube Community Build (26.4+) instance via its web-api.
 It lets AI agents (Claude Code, Cursor, VS Code Copilot, etc.) fetch a project's issue list, the files and locations where they occur, rule descriptions, source-code snippets around issues, and Security Hotspots.
