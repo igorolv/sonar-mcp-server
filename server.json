@@ -1,0 +1,42 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.igorolv/sonar-mcp-server",
+  "title": "Sonar MCP Server",
+  "description": "Read-only SonarQube Community Build access for AI agents: issues, hotspots, rules, code snippets",
+  "version": "0.0.0",
+  "websiteUrl": "https://github.com/igorolv/sonar-mcp-server#readme",
+  "repository": {
+    "url": "https://github.com/igorolv/sonar-mcp-server",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/igorolv/sonar-mcp-server:0.0.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "SONAR_URL",
+          "description": "Base URL of the SonarQube instance, e.g. https://sonar.example.com",
+          "isRequired": true,
+          "format": "string"
+        },
+        {
+          "name": "SONAR_TOKEN",
+          "description": "SonarQube user token (My Account -> Security -> Generate Tokens)",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "SONAR_DEFAULT_PROJECT_KEY",
+          "description": "Project key used when a tool call does not name one",
+          "isRequired": false,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}

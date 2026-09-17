@@ -1,5 +1,11 @@
 # Sonar MCP Server
 
+[![CI](https://github.com/igorolv/sonar-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/igorolv/sonar-mcp-server/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/igorolv/sonar-mcp-server?include_prereleases)](https://github.com/igorolv/sonar-mcp-server/releases/latest)
+[![License](https://img.shields.io/github/license/igorolv/sonar-mcp-server)](LICENSE)
+[![Java 25](https://img.shields.io/badge/Java-25%2B-blue?logo=openjdk)](https://adoptium.net/)
+[![MCP](https://img.shields.io/badge/MCP-server-8A2BE2)](https://modelcontextprotocol.io/)
+
 A local MCP server providing read-only access to a SonarQube Community Build (26.4+) instance via its web-api.
 It lets AI agents (Claude Code, Cursor, VS Code Copilot, etc.) fetch a project's issue list, the files and locations where they occur, rule descriptions, source-code snippets around issues, and Security Hotspots.
 
@@ -19,9 +25,17 @@ In short: a focused, read-only bridge from a self-hosted SonarQube Community Bui
 ## Quick start
 
 1. Install JDK 25+.
-2. Build the server: `./gradlew build`.
-3. Get your SonarQube URL and user token.
-4. Add the resulting JAR to your client's MCP configuration (see [Connecting to an AI client](#connecting-to-an-ai-client)).
+2. Download `sonar-mcp-server.jar` from the [latest release](https://github.com/igorolv/sonar-mcp-server/releases/latest),
+   or build it yourself: `./gradlew bootJar` (see [Build](#build)). A [Docker image](#docker) is
+   published as well.
+3. Get your SonarQube URL and user token (see [Configuration](#configuration)).
+4. Add the JAR to your client's MCP configuration (see [Connecting to an AI client](#connecting-to-an-ai-client)).
+
+For Claude Code that is one command:
+
+```bash
+claude mcp add --scope user -e SONAR_URL=https://sonar.example.com -e SONAR_TOKEN=your_token -- sonar java -jar /path/to/sonar-mcp-server.jar
+```
 
 ## Architecture
 
@@ -174,6 +188,19 @@ The server runs over `stdio`. After a successful start it opens no HTTP port and
 
 Logs are written to `${SONAR_MCP_DATA_DIR:-~/.sonar-mcp-server}/logs/sonar-mcp-server.log`.
 The file rotates by date and size: `10MB`, retention `30` days, total cap `512MB`.
+
+### Docker
+
+The image is published to GHCR with every release:
+
+```bash
+docker run -i --rm   -e SONAR_URL=https://sonar.example.com   -e SONAR_TOKEN=your_token   ghcr.io/igorolv/sonar-mcp-server:latest
+```
+
+The same command is what an MCP client should launch (`-i` keeps stdin open for the stdio
+transport). Mount a host directory at `/data` to keep logs between runs. If SonarQube runs on the
+same machine, use its host name rather than `localhost`, or add `--network host` on Linux.
+To build the image locally: `docker build -t sonar-mcp-server .`
 
 ## Connecting to an AI client
 
